@@ -552,7 +552,7 @@ pub(super) async fn send_registration_assets(
 
     let link_text = t(lang, "link-text");
     if bot
-        .send_message(chat_id, format!("{}{}", link_text, assets.tt_link))
+        .send_message(chat_id, format!("{}\n{}", link_text, assets.tt_link))
         .await
         .is_err()
     {
@@ -563,6 +563,7 @@ pub(super) async fn send_registration_assets(
     let public_host = config
         .tt_public_hostname
         .as_deref()
+        .filter(|value| !value.trim().is_empty())
         .unwrap_or(&config.host_name);
     let host_msg = t_args(
         lang,

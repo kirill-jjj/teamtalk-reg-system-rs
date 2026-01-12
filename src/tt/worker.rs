@@ -414,7 +414,7 @@ pub async fn run_tt_worker(
                 }
             }
 
-            if !is_logged_in {
+            if !is_logged_in && !client.is_connected() && !client.is_connecting() {
                 client.handle_reconnect(&connect_params, &mut reconnect);
             }
         }

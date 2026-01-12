@@ -21,6 +21,8 @@ deeplink-invalid = This registration link is invalid, expired, or has already be
 deeplink-used-already = You have already registered. This link cannot be used to register again.
 deeplink-bot-username-missing = Internal error: bot username is not available. Please contact support.
 bot-shutdown = Shutting down...
+native_language_name = English
+start-message = Welcome! Please choose a language to start registration.
 
 # New messages (Host/Port/Broadcast)
 msg-host = Host: { $host }
@@ -87,12 +89,14 @@ admin-decision-rejected = rejected
 
 # Files
 file-caption = Your .tt file for quick connection
-link-text = Or use this TT link:\n
+link-text = Or use this TT link:
 file-send-error = Could not send the .tt file or link. Please contact an admin.
 
 # Commands
 
 # TT Worker Notifications
+tt-account-created = TeamTalk user '{ $account_username_str }' has been created.
+tt-account-changed = TeamTalk user '{ $account_username_str }' has been updated.
 tt-account-removed = TeamTalk: User account '{ $username }' has been REMOVED.
 tt-account-removed-banned = 🚫 User '{ $username }' removed from TT. Auto-banned TG ID: { $tg_id }
 tt-account-removed-no-link = 🗑️ User '{ $username }' removed from TT (No TG link found).
