@@ -265,7 +265,16 @@ pub async fn admin_callback(
             .await?;
         }
     } else if data.starts_with("admin_del_confirm_") {
-        let target_id: i64 = data.replace("admin_del_confirm_", "").parse().unwrap_or(0);
+        let target_id_str = data.replace("admin_del_confirm_", "");
+        let Ok(target_id) = target_id_str.parse::<i64>() else {
+            bot.edit_message_text(
+                msg.chat().id,
+                msg.id(),
+                t(lang.as_str(), "admin-action-refresh-fail"),
+            )
+            .await?;
+            return Ok(());
+        };
         let tg_id = TelegramId::new(target_id);
         let reg = db.get_registration_by_id(tg_id).await?;
         if db.delete_registration(tg_id).await? {

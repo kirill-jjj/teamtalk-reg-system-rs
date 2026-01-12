@@ -62,6 +62,10 @@ pub struct AppConfig {
     pub web_app_ssl_key_path: Option<String>,
     #[serde(default)]
     pub root_path: String,
+    #[serde(default)]
+    pub web_app_proxy_headers: bool,
+    #[serde(default = "default_forwarded_allow_ips")]
+    pub web_app_forwarded_allow_ips: String,
 
     pub teamtalk_client_template_dir: Option<String>,
     #[serde(default = "default_ttl")]
@@ -112,6 +116,9 @@ fn default_host() -> String {
 }
 fn default_port() -> u16 {
     5000
+}
+fn default_forwarded_allow_ips() -> String {
+    "*".to_string()
 }
 fn default_ttl() -> u64 {
     600

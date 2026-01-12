@@ -38,7 +38,7 @@ pub async fn register_post(
     headers: HeaderMap,
     Form(form): Form<RegisterForm>,
 ) -> impl IntoResponse {
-    let ip = addr.ip();
+    let ip = resolve_client_ip(&state, &headers, addr.ip());
     let (lang, language_forced) = resolve_web_lang(&state.config, &headers);
     if state
         .db
@@ -70,7 +70,7 @@ pub async fn register_post(
             language_forced,
             state.config.generated_file_ttl_seconds,
         );
-        tpl.message = Some(t(lang.as_str(), "web-err-username-taken"));
+        tpl.message = Some(t(lang.as_str(), "web-err-username-invalid"));
         tpl.message_class = Some("error".to_string());
         tpl.message_class_safe = "error".to_string();
         tpl.username_val = form.username;
@@ -85,7 +85,7 @@ pub async fn register_post(
             language_forced,
             state.config.generated_file_ttl_seconds,
         );
-        tpl.message = Some(t(lang.as_str(), "web-err-timeout"));
+        tpl.message = Some(t(lang.as_str(), "web-err-password-invalid"));
         tpl.message_class = Some("error".to_string());
         tpl.message_class_safe = "error".to_string();
         tpl.username_val = form.username;
@@ -103,7 +103,7 @@ pub async fn register_post(
                     language_forced,
                     state.config.generated_file_ttl_seconds,
                 );
-                tpl.message = Some(t(lang.as_str(), "web-err-timeout"));
+                tpl.message = Some(t(lang.as_str(), "web-err-nickname-invalid"));
                 tpl.message_class = Some("error".to_string());
                 tpl.message_class_safe = "error".to_string();
                 tpl.username_val = form.username;
@@ -122,7 +122,7 @@ pub async fn register_post(
                     language_forced,
                     state.config.generated_file_ttl_seconds,
                 );
-                tpl.message = Some(t(lang.as_str(), "web-err-timeout"));
+                tpl.message = Some(t(lang.as_str(), "web-err-nickname-invalid"));
                 tpl.message_class = Some("error".to_string());
                 tpl.message_class_safe = "error".to_string();
                 tpl.username_val = form.username;
@@ -464,6 +464,41 @@ fn resolve_web_lang(
     }
 
     (LanguageCode::default(), false)
+}
+
+fn resolve_client_ip(
+    state: &WebState,
+    headers: &HeaderMap,
+    fallback: std::net::IpAddr,
+) -> std::net::IpAddr {
+    if !state.config.web_app_proxy_headers {
+        return fallback;
+    }
+
+    let allow = state.config.web_app_forwarded_allow_ips.trim();
+    if allow != "*"
+        && !allow
+            .split(',')
+            .map(|s| s.trim())
+            .any(|s| s == fallback.to_string())
+    {
+        return fallback;
+    }
+
+    if let Some(value) = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok())
+        && let Some(first) = value.split(',').next().map(|v| v.trim())
+        && let Ok(ip) = first.parse()
+    {
+        return ip;
+    }
+
+    if let Some(value) = headers.get("x-real-ip").and_then(|v| v.to_str().ok())
+        && let Ok(ip) = value.parse()
+    {
+        return ip;
+    }
+
+    fallback
 }
 
 async fn download_by_type(
