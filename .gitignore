@@ -1,5 +1,7 @@
 /target/
 **/*.rs.bk
+.sqlx/prepare.db
+db/
 
 # Local env/config
 .env
