@@ -1,5 +1,7 @@
 # TeamTalk Registration System (Rust)
 
+[![Build Binaries](https://github.com/kirill-jjj/teamtalk-reg-system-rs/actions/workflows/build.yml/badge.svg)](https://github.com/kirill-jjj/teamtalk-reg-system-rs/actions/workflows/build.yml)
+
 Service for handling TeamTalk registrations via Telegram bot and web endpoints.
 
 ## Requirements
