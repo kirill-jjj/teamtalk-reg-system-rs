@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO fastapi_registered_ips (ip_address, username, registration_timestamp) VALUES (?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "79c0a214be9455554d96e477477bd2c789010f5512b3f7ef0a38cd2d9f5e0b66"
+}

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR REPLACE INTO telegram_registrations (telegram_id, teamtalk_username) VALUES (?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "1eb7674257e66d3dc9569a5dc79e7c6bfd03d1d3a93a6708323cea6551bd175d"
+}

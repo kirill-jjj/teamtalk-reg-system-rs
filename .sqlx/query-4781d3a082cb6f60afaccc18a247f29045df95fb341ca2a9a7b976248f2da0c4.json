@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO pending_telegram_registrations (request_key, registrant_telegram_id, username, password_cleartext, nickname, source_info) VALUES (?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "4781d3a082cb6f60afaccc18a247f29045df95fb341ca2a9a7b976248f2da0c4"
+}

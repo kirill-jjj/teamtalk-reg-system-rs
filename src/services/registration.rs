@@ -1,0 +1,141 @@
+use crate::config::AppConfig;
+use crate::db::Database;
+use crate::domain::{Nickname, Password, Username};
+use crate::files::{create_client_zip, generate_tt_file_content, generate_tt_link};
+use crate::types::{RegistrationSource, TTAccountType, TTWorkerCommand, TelegramId};
+use std::error::Error;
+use std::path::{Path, PathBuf};
+use std::sync::mpsc::Sender;
+use tracing::instrument;
+
+pub struct RegistrationAssets {
+    pub tt_content: String,
+    pub tt_link: String,
+    pub tt_filename: String,
+}
+
+pub struct RegistrationResult {
+    pub created: bool,
+    pub db_sync_error: Option<String>,
+    pub assets: Option<RegistrationAssets>,
+}
+
+pub fn build_assets(
+    config: &AppConfig,
+    username: &str,
+    password: &str,
+    nickname: &str,
+) -> RegistrationAssets {
+    let tt_content = generate_tt_file_content(config, username, password, nickname);
+    let tt_link = generate_tt_link(config, username, password, nickname);
+    let tt_filename = format!("{}.tt", config.server_name);
+
+    RegistrationAssets {
+        tt_content,
+        tt_link,
+        tt_filename,
+    }
+}
+
+pub struct CreateAccountParams<'a> {
+    pub username: &'a Username,
+    pub password: &'a Password,
+    pub nickname: &'a Nickname,
+    pub account_type: TTAccountType,
+    pub source: RegistrationSource,
+    pub telegram_id: Option<TelegramId>,
+    pub tx_tt: Sender<TTWorkerCommand>,
+    pub db: &'a Database,
+    pub config: &'a AppConfig,
+    pub is_admin: bool,
+}
+
+#[instrument(
+    skip(params),
+    fields(username = %params.username.as_str(), account_type = ?params.account_type)
+)]
+pub async fn create_teamtalk_account(
+    params: CreateAccountParams<'_>,
+) -> Result<RegistrationResult, Box<dyn Error + Send + Sync>> {
+    let CreateAccountParams {
+        username,
+        password,
+        nickname,
+        account_type,
+        source,
+        telegram_id,
+        tx_tt,
+        db,
+        config,
+        is_admin,
+    } = params;
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    let cmd = TTWorkerCommand::CreateAccount {
+        username: username.clone(),
+        password: password.clone(),
+        nickname: nickname.clone(),
+        account_type,
+        source,
+        resp: tx,
+    };
+    tx_tt.send(cmd)?;
+
+    match rx.await {
+        Ok(Ok(true)) => {
+            let mut db_sync_error = None;
+            if !is_admin
+                && let Some(tg_id) = telegram_id
+                && let Err(e) = db.add_registration(tg_id, username.as_str()).await
+            {
+                db_sync_error = Some(e.to_string());
+            }
+
+            let assets = build_assets(
+                config,
+                username.as_str(),
+                password.as_str(),
+                nickname.as_str(),
+            );
+            Ok(RegistrationResult {
+                created: true,
+                db_sync_error,
+                assets: Some(assets),
+            })
+        }
+        _ => Ok(RegistrationResult {
+            created: false,
+            db_sync_error: None,
+            assets: None,
+        }),
+    }
+}
+
+pub fn temp_dir() -> PathBuf {
+    std::env::current_dir()
+        .unwrap_or_else(|_| PathBuf::from("."))
+        .join("temp_files")
+}
+
+pub async fn try_create_client_zip_async(
+    config: &AppConfig,
+    output_path: &Path,
+    assets: &RegistrationAssets,
+) -> bool {
+    let Some(tpl_dir) = &config.teamtalk_client_template_dir else {
+        return false;
+    };
+    if !Path::new(tpl_dir).exists() {
+        return false;
+    }
+
+    let tpl_dir = tpl_dir.clone();
+    let output_path = output_path.to_path_buf();
+    let tt_filename = assets.tt_filename.clone();
+    let tt_content = assets.tt_content.clone();
+
+    tokio::task::spawn_blocking(move || {
+        create_client_zip(&tpl_dir, &output_path, &tt_filename, &tt_content).is_ok()
+    })
+    .await
+    .unwrap_or(false)
+}

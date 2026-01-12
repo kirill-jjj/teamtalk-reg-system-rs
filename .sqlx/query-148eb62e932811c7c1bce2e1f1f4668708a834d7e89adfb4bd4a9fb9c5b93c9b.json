@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE deeplink_tokens SET is_used = 1 WHERE token = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "148eb62e932811c7c1bce2e1f1f4668708a834d7e89adfb4bd4a9fb9c5b93c9b"
+}

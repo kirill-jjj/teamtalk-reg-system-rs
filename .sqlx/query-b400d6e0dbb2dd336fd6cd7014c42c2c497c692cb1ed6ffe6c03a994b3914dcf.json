@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM deeplink_tokens WHERE expires_at < ? OR is_used = 1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "b400d6e0dbb2dd336fd6cd7014c42c2c497c692cb1ed6ffe6c03a994b3914dcf"
+}

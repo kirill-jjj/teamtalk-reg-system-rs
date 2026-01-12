@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM banned_users WHERE telegram_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "decfd0fef749aaff19637ce35ff502b5b3a962fa161701b0e3fe0179ff0afa3c"
+}

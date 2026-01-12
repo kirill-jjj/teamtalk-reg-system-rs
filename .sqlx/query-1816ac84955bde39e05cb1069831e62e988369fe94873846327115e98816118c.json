@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE fastapi_download_tokens SET is_used = 1 WHERE token = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "1816ac84955bde39e05cb1069831e62e988369fe94873846327115e98816118c"
+}

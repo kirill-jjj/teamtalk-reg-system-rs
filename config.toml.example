@@ -1,0 +1,64 @@
+# TeamTalk Reg Bot (Rust) example config
+
+# --- Telegram ---
+tg_bot_token = "YOUR_TELEGRAM_BOT_TOKEN"
+admin_ids = [123456789]
+
+# --- TeamTalk Server ---
+host_name = "127.0.0.1"
+port = 10333
+udp_port = 10333
+user_name = "tt_bot"
+password = "tt_bot_password"
+nick_name = "RegisterBot"
+client_name = "PyTalkRegisterBot"
+encrypted = false
+server_name = "TeamTalk Server"
+
+# --- TeamTalk Bot Account ---
+tt_public_hostname = ""
+tt_join_channel = ""
+tt_join_channel_password = ""
+tt_status_text = ""
+tt_gender = "neutral" # male/female/neutral
+
+# --- Registration ---
+verify_registration = false
+bot_admin_lang = "en"
+force_user_lang = ""
+teamtalk_default_user_rights = [
+  "MULTI_LOGIN",
+  "VIEW_ALL_USERS",
+  "CREATE_TEMPORARY_CHANNEL",
+  "UPLOAD_FILES",
+  "DOWNLOAD_FILES",
+  "TRANSMIT_VOICE",
+  "TRANSMIT_VIDEOCAPTURE",
+  "TRANSMIT_DESKTOP",
+  "TRANSMIT_DESKTOPINPUT",
+  "TRANSMIT_MEDIAFILE",
+  "TEXTMESSAGE_USER",
+  "TEXTMESSAGE_CHANNEL",
+]
+teamtalk_registration_broadcast_enabled = true
+
+# --- Web ---
+web_registration_enabled = false
+web_app_host = "0.0.0.0"
+web_app_port = 5000
+root_path = ""
+web_app_ssl_enabled = false
+web_app_ssl_cert_path = ""
+web_app_ssl_key_path = ""
+
+# --- Advanced ---
+teamtalk_client_template_dir = ""
+generated_file_ttl_seconds = 600
+db_name = "users.db"
+db_cleanup_interval_seconds = 3600
+pending_reg_ttl_seconds = 604800
+registered_ip_ttl_seconds = 2592000
+
+# --- Telegram Registration Modes ---
+telegram_deeplink_registration_enabled = false
+telegram_public_registration_enabled = true

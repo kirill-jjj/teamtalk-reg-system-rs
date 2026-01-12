@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="{{ current_lang }}">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ page_title }} - {{ server_name }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f9f9f9; color: #333; }
+        .container { max-width: 600px; margin: 20px auto; padding: 20px; background-color: #fff; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1 { color: #0056b3; text-align: center; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input[type="text"], input[type="password"], select { width: calc(100% - 22px); padding: 10px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        button[type="submit"] { background-color: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
+        button[type="submit"]:hover { background-color: #0056b3; }
+        .message { padding: 10px; margin-bottom: 15px; border-radius: 4px; }
+        .message.error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .message.success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .message.info { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .download-section p { margin: 10px 0; }
+        .download-section a { color: #007bff; text-decoration: none; }
+        .download-section a:hover { text-decoration: underline; }
+        #countdown-timer { font-weight: bold; }
+        .intro-text { text-align: center; margin-bottom: 20px; }
+        .lang-select-section { margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>{{ page_header }}</h1>
+
+        {% if !language_forced %}
+        <div class="lang-select-section">
+            <h2>{{ select_language }}</h2>
+            <form method="POST" action="/set_lang_and_reload">
+                <div>
+                    <label for="lang_code">{{ language_label }}</label>
+                    <select id="lang_code" name="lang_code">
+                        {% for lang in available_languages %}
+                            <option value="{{ lang.0 }}" {% if current_lang == lang.0 %}selected{% endif %}>{{ lang.1 }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button type="submit">{{ set_language }}</button>
+            </form>
+        </div>
+        {% endif %}
+
+        {% if !registration_complete %}
+            <p class="intro-text">{{ intro_line_1 }} "<strong>{{ server_name }}</strong>", {{ intro_line_2 }}</p>
+
+            {% if let Some(msg) = message %}
+                <div class="message {{ message_class_safe }}">
+                    <p><strong>{{ msg }}</strong></p>
+                </div>
+            {% endif %}
+            {% if let Some(info) = additional_message_info %}
+                <div class="message info">
+                    <p><em>{{ info }}</em></p>
+                </div>
+            {% endif %}
+
+            <form method="post">
+                <div>
+                    <label for="username">{{ label_username }}</label>
+                    <input type="text" id="username" name="username" required value="{{ username_val }}">
+                </div>
+                <div>
+                    <label for="nickname">{{ label_nickname }}</label>
+                    <input type="text" id="nickname" name="nickname" placeholder="{{ placeholder_nickname }}" value="{{ nickname_val }}">
+                </div>
+                <div>
+                    <label for="password">{{ label_password }}</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <input type="checkbox" id="showPasswordCheckbox" onclick="togglePasswordVisibility()" style="margin-right: 5px;">
+                    <label for="showPasswordCheckbox">{{ show_password }}</label>
+                </div>
+                <button type="submit">{{ btn_register }}</button>
+            </form>
+        {% endif %}
+
+        {% if registration_complete && (tt_link.is_some() || download_tt_token.is_some() || download_client_zip_token.is_some()) %}
+        <div id="download-section" class="download-section">
+            <hr>
+            {% if let Some(msg) = message %}
+                <div class="message {{ message_class_safe }}">
+                    <p><strong>{{ msg }}</strong></p>
+                </div>
+            {% endif %}
+            <p>{{ download_msg }}</p>
+            <p>{{ countdown_text | safe }}</p>
+            {% if let Some(link) = tt_link %}
+            <p><strong>{{ quick_link_text }}</strong> <a href="{{ link }}" target="_blank">{{ link }}</a></p>
+            {% endif %}
+            {% if let Some(token) = download_tt_token %}
+            <p><a href="/download_tt/{{ token }}">{{ link_tt_text }} {% if let Some(name) = actual_tt_filename_for_user %}({{ name }}){% endif %}</a></p>
+            {% endif %}
+            {% if let Some(token) = download_client_zip_token %}
+            <p><a href="/download_client_zip/{{ token }}">{{ link_zip_text }} {% if let Some(name) = actual_client_zip_filename_for_user %}({{ name }}){% endif %}</a></p>
+            {% endif %}
+        </div>
+        <script>
+            function getRussianPlural(number, one, few, many) {
+                number = Math.abs(number);
+                number %= 100;
+                if (number >= 5 && number <= 20) { return many; }
+                number %= 10;
+                if (number === 1) { return one; }
+                if (number >= 2 && number <= 4) { return few; }
+                return many;
+            }
+
+            function startCountdown(durationSeconds, displayElementId, lang) {
+                let timer = durationSeconds;
+                const displayElement = document.getElementById(displayElementId);
+                if (!displayElement) return;
+
+                const expiredStr = "{{ expired_text }}";
+                const secStr = "{{ second_text }}";
+                const secsFewStr = "{{ seconds_few_text }}";
+                const secsManyStr = "{{ seconds_text }}";
+
+                function updateDisplay() {
+                    if (timer < 0) {
+                        displayElement.textContent = expiredStr;
+                        return;
+                    }
+
+                    const minutes = Math.floor(timer / 60);
+                    const seconds = timer % 60;
+
+                    if (lang === "ru") {
+                        const paddedSeconds = seconds < 10 && minutes > 0 ? '0' + seconds : seconds;
+                        if (minutes > 0) {
+                            displayElement.textContent = minutes + ":" + paddedSeconds;
+                        } else {
+                            displayElement.textContent = seconds + " " + getRussianPlural(seconds, secStr, secsFewStr, secsManyStr);
+                        }
+                    } else {
+                        const paddedSeconds = seconds < 10 ? '0' + seconds : seconds;
+                        displayElement.textContent = minutes + ":" + paddedSeconds;
+                    }
+                }
+                updateDisplay();
+                const intervalId = setInterval(function () {
+                    timer--;
+                    updateDisplay();
+                    if (timer < 0) {
+                        clearInterval(intervalId);
+                    }
+                }, 1000);
+            }
+
+            window.onload = function () {
+                const currentLang = document.documentElement.lang || "en";
+                const initialSeconds = {{ generated_file_ttl_seconds }};
+                startCountdown(initialSeconds, 'countdown-timer', currentLang);
+            };
+        </script>
+        {% endif %}
+    </div>
+
+    <script>
+        function togglePasswordVisibility() {
+            var passwordInput = document.getElementById("password");
+            var showPasswordCheckbox = document.getElementById("showPasswordCheckbox");
+            if (showPasswordCheckbox.checked) {
+                passwordInput.type = "text";
+            } else {
+                passwordInput.type = "password";
+            }
+        }
+    </script>
+</body>
+</html>

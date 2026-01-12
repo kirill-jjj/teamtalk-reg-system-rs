@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM fastapi_registered_ips WHERE registration_timestamp < datetime('now', ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "8ed9cdad482d62dff85870e1dba2971f32f9aa46bb45ce53dac8046f72c79782"
+}

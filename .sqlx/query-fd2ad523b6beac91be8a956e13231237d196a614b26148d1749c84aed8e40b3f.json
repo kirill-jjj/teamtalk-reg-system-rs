@@ -1,0 +1,56 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT token as \"token!: String\", filepath_on_server as \"filepath_on_server!: String\", original_filename as \"original_filename!: String\", token_type as \"token_type!: String\", created_at as \"created_at!: chrono::NaiveDateTime\", expires_at as \"expires_at!: chrono::NaiveDateTime\", is_used as \"is_used!: bool\" FROM fastapi_download_tokens WHERE token = ? AND is_used = 0 AND expires_at > ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "token!: String",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "filepath_on_server!: String",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "original_filename!: String",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "token_type!: String",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_at!: chrono::NaiveDateTime",
+        "ordinal": 4,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "expires_at!: chrono::NaiveDateTime",
+        "ordinal": 5,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "is_used!: bool",
+        "ordinal": 6,
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "fd2ad523b6beac91be8a956e13231237d196a614b26148d1749c84aed8e40b3f"
+}

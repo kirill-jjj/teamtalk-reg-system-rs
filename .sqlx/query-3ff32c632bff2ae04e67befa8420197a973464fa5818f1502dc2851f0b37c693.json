@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT telegram_id as \"telegram_id!: TelegramId\", teamtalk_username as \"teamtalk_username!: String\" FROM telegram_registrations WHERE telegram_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "telegram_id!: TelegramId",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "teamtalk_username!: String",
+        "ordinal": 1,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "3ff32c632bff2ae04e67befa8420197a973464fa5818f1502dc2851f0b37c693"
+}

@@ -1,0 +1,44 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT telegram_id as \"telegram_id!: TelegramId\", teamtalk_username as \"teamtalk_username?: String\", banned_at as \"banned_at!: chrono::NaiveDateTime\", banned_by_admin_id as \"banned_by_admin_id?: TelegramId\", reason as \"reason?: String\" FROM banned_users ORDER BY banned_at DESC",
+  "describe": {
+    "columns": [
+      {
+        "name": "telegram_id!: TelegramId",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "teamtalk_username?: String",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "banned_at!: chrono::NaiveDateTime",
+        "ordinal": 2,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "banned_by_admin_id?: TelegramId",
+        "ordinal": 3,
+        "type_info": "Integer"
+      },
+      {
+        "name": "reason?: String",
+        "ordinal": 4,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      true,
+      true,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "a28aa6bc27c2a9502f1f0a36d2d3d8234767eda839f45239f74ffe85896a8a79"
+}

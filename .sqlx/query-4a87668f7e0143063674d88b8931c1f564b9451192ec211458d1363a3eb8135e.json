@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM pending_telegram_registrations WHERE created_at < datetime('now', ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "4a87668f7e0143063674d88b8931c1f564b9451192ec211458d1363a3eb8135e"
+}

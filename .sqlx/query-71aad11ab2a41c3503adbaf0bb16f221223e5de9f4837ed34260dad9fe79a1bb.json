@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR REPLACE INTO banned_users (telegram_id, teamtalk_username, banned_at, banned_by_admin_id, reason) VALUES (?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "71aad11ab2a41c3503adbaf0bb16f221223e5de9f4837ed34260dad9fe79a1bb"
+}

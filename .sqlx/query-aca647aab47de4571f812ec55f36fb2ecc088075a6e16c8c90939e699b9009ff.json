@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id as \"id?: i64\", token as \"token!: String\", created_at as \"created_at!: chrono::NaiveDateTime\", expires_at as \"expires_at!: chrono::NaiveDateTime\", is_used as \"is_used!: bool\", generated_by_admin_id as \"generated_by_admin_id?: i64\" FROM deeplink_tokens WHERE token = ? AND is_used = 0 AND expires_at > ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id?: i64",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "token!: String",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_at!: chrono::NaiveDateTime",
+        "ordinal": 2,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "expires_at!: chrono::NaiveDateTime",
+        "ordinal": 3,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "is_used!: bool",
+        "ordinal": 4,
+        "type_info": "Bool"
+      },
+      {
+        "name": "generated_by_admin_id?: i64",
+        "ordinal": 5,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      true,
+      true,
+      true,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "aca647aab47de4571f812ec55f36fb2ecc088075a6e16c8c90939e699b9009ff"
+}

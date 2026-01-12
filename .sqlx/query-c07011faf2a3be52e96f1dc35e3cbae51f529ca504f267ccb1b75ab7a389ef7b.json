@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO fastapi_download_tokens (token, filepath_on_server, original_filename, token_type, created_at, expires_at, is_used) VALUES (?, ?, ?, ?, ?, ?, 0)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "c07011faf2a3be52e96f1dc35e3cbae51f529ca504f267ccb1b75ab7a389ef7b"
+}

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM pending_telegram_registrations WHERE request_key = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "50935c79697bbbefc81ad4dcf9b2ee1325ac4b94c657869afc0b50d23d1e9504"
+}
