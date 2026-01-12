@@ -3224,7 +3224,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "teamtalk-reg-rs"
+name = "teamtalk-reg-system-rs"
 version = "0.1.0"
 dependencies = [
  "anyhow",

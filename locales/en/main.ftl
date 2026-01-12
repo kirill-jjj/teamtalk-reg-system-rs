@@ -126,4 +126,3 @@ web-err-username-taken = Sorry, this username is already taken. Please choose an
 web-err-timeout = Timeout waiting for TeamTalk server.
 web-err-file-not-found = File not found on disk
 web-err-invalid-link = Invalid or expired link
-
