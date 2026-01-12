@@ -138,6 +138,7 @@ pub async fn register_post(
         nickname: nickname.clone(),
         account_type: crate::types::TTAccountType::Default,
         source: RegistrationSource::Web(ip),
+        source_info: None,
         resp: tx,
     };
 

@@ -480,17 +480,39 @@ async fn handle_registration_end_with_type(
                 .ok();
         }
     } else {
+        let (tg_fullname, tg_username) = match bot.get_chat(chat_id).await {
+            Ok(u) => {
+                let first = u.first_name().unwrap_or("Unknown");
+                let last = u.last_name().unwrap_or("");
+                let fullname = if last.is_empty() {
+                    first.to_string()
+                } else {
+                    format!("{} {}", first, last)
+                };
+                let username = u.username().map(|u| u.to_string()).unwrap_or_default();
+                (fullname, username)
+            }
+            Err(_) => ("Unknown".to_string(), String::new()),
+        };
+        let mut source_info = format!("Telegram ID: {}", chat_id.0);
+        if !tg_username.is_empty() {
+            source_info.push_str(&format!(", username: @{}", tg_username));
+        }
+        if !tg_fullname.is_empty() {
+            source_info.push_str(&format!(", name: {}", tg_fullname));
+        }
+
         let result = registration::create_teamtalk_account(registration::CreateAccountParams {
             username: &username,
             password: &password,
             nickname: &nickname,
             account_type,
             source: RegistrationSource::Telegram(TelegramId::new(chat_id.0)),
+            source_info: Some(source_info),
             telegram_id: Some(TelegramId::new(chat_id.0)),
             tx_tt,
             db: &db,
             config: &config,
-            is_admin,
         })
         .await?;
 

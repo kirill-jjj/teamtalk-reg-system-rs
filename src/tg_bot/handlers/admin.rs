@@ -70,7 +70,6 @@ pub async fn admin_callback(
                     return Ok(());
                 };
                 let req_lang = parse_source_info(&req.source_info).lang;
-                let is_registrant_admin = config.admin_ids.contains(&req.registrant_telegram_id);
                 let result =
                     registration::create_teamtalk_account(registration::CreateAccountParams {
                         username: &username,
@@ -78,11 +77,11 @@ pub async fn admin_callback(
                         nickname: &nickname,
                         account_type: TTAccountType::Default,
                         source: RegistrationSource::Telegram(req.registrant_telegram_id),
+                        source_info: Some(req.source_info.clone()),
                         telegram_id: Some(req.registrant_telegram_id),
                         tx_tt: tx_tt.clone(),
                         db: &db,
                         config: &config,
-                        is_admin: is_registrant_admin,
                     })
                     .await?;
 

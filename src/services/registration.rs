@@ -43,11 +43,11 @@ pub struct CreateAccountParams<'a> {
     pub nickname: &'a Nickname,
     pub account_type: TTAccountType,
     pub source: RegistrationSource,
+    pub source_info: Option<String>,
     pub telegram_id: Option<TelegramId>,
     pub tx_tt: Sender<TTWorkerCommand>,
     pub db: &'a Database,
     pub config: &'a AppConfig,
-    pub is_admin: bool,
 }
 
 #[instrument(
@@ -63,11 +63,11 @@ pub async fn create_teamtalk_account(
         nickname,
         account_type,
         source,
+        source_info,
         telegram_id,
         tx_tt,
         db,
         config,
-        is_admin,
     } = params;
     let (tx, rx) = tokio::sync::oneshot::channel();
     let cmd = TTWorkerCommand::CreateAccount {
@@ -76,6 +76,7 @@ pub async fn create_teamtalk_account(
         nickname: nickname.clone(),
         account_type,
         source,
+        source_info,
         resp: tx,
     };
     tx_tt.send(cmd)?;
@@ -83,8 +84,7 @@ pub async fn create_teamtalk_account(
     match rx.await {
         Ok(Ok(true)) => {
             let mut db_sync_error = None;
-            if !is_admin
-                && let Some(tg_id) = telegram_id
+            if let Some(tg_id) = telegram_id
                 && let Err(e) = db.add_registration(tg_id, username.as_str()).await
             {
                 db_sync_error = Some(e.to_string());

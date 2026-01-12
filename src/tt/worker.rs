@@ -64,12 +64,13 @@ fn handle_command(cmd: TTWorkerCommand, ctx: &mut CommandContext<'_>) {
             nickname,
             account_type,
             source,
+            source_info,
             resp,
         } => {
-            let source_info = match &source {
+            let source_info = source_info.unwrap_or_else(|| match &source {
                 RegistrationSource::Telegram(id) => format!("Telegram ID: {}", id),
                 RegistrationSource::Web(ip) => format!("Web IP: {}", ip),
-            };
+            });
             debug!(
                 "Sending CreateAccount for '{}'. Source: {}",
                 username.as_str(),

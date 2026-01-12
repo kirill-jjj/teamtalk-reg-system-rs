@@ -155,6 +155,7 @@ pub enum TTWorkerCommand {
         nickname: crate::domain::Nickname,
         account_type: TTAccountType,
         source: RegistrationSource,
+        source_info: Option<String>,
         resp: tokio::sync::oneshot::Sender<Result<bool, String>>,
     },
     CheckUserExists {
