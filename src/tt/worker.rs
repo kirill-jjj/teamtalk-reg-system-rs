@@ -155,6 +155,7 @@ pub async fn run_tt_worker(
     bot: Bot,
     db: Database,
     rt_handle: Handle,
+    shutdown: tokio_util::sync::CancellationToken,
 ) {
     let host = config.host_name.clone();
     let tcp_port = config.tcp_port;
@@ -205,6 +206,10 @@ pub async fn run_tt_worker(
         let mut pending_lists: HashMap<i32, PendingListRequest> = HashMap::new();
 
         loop {
+            if shutdown.is_cancelled() {
+                let _ = client.disconnect();
+                break;
+            }
             let mut ctx = CommandContext {
                 client: &client,
                 rights: &rights,

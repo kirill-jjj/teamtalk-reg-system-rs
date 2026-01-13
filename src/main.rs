@@ -19,6 +19,7 @@ use teloxide::dispatching::dialogue::InMemStorage;
 use teloxide::prelude::*;
 use tg_bot::handlers::{Command, MyDialogue, State};
 use tokio::time::MissedTickBehavior;
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info};
 
 #[derive(Parser, Debug)]
@@ -52,6 +53,7 @@ async fn main() -> anyhow::Result<()> {
     };
 
     let rt_handle = tokio::runtime::Handle::current();
+    let shutdown = CancellationToken::new();
 
     let db_path = config.get_db_path(&config_path);
     let db_path_str = db_path.to_string_lossy().to_string();
@@ -112,13 +114,19 @@ async fn main() -> anyhow::Result<()> {
         bot.clone(),
         db.clone(),
         rt_handle,
+        shutdown.clone(),
     ));
 
     if config.web_registration_enabled {
         let web_config = config.clone();
         let web_db = db.clone();
         let web_tx = tx_tt.clone();
-        tokio::spawn(web::run_server(web_config, web_db, web_tx));
+        tokio::spawn(web::run_server(
+            web_config,
+            web_db,
+            web_tx,
+            shutdown.clone(),
+        ));
     }
 
     let handler = Update::filter_message()
@@ -216,17 +224,61 @@ async fn main() -> anyhow::Result<()> {
 
     let schema = dptree::entry().branch(handler).branch(callback_handler);
 
-    Dispatcher::builder(bot, schema)
+    let mut dispatcher = Dispatcher::builder(bot, schema)
         .dependencies(dptree::deps![
-            db,
+            db.clone(),
             config_arc,
             tx_tt,
             InMemStorage::<State>::new()
         ])
-        .enable_ctrlc_handler()
-        .build()
-        .dispatch()
-        .await;
+        .build();
+
+    let shutdown_token = dispatcher.shutdown_token();
+    let dispatch_handle = tokio::spawn(async move {
+        dispatcher.dispatch().await;
+    });
+
+    tokio::spawn({
+        let shutdown = shutdown.clone();
+        async move {
+            wait_for_shutdown_signal().await;
+            shutdown.cancel();
+            if let Ok(fut) = shutdown_token.shutdown() {
+                fut.await;
+            }
+        }
+    });
+
+    let _ = dispatch_handle.await;
+
+    info!("Closing database pool...");
+    db.pool.close().await;
+    info!("Database pool closed.");
 
     Ok(())
+}
+
+#[cfg(unix)]
+async fn wait_for_shutdown_signal() {
+    use tokio::signal::unix::{SignalKind, signal};
+
+    let mut sigterm = match signal(SignalKind::terminate()) {
+        Ok(sigterm) => sigterm,
+        Err(e) => {
+            error!(error = %e, "Failed to register SIGTERM handler");
+            let _ = tokio::signal::ctrl_c().await;
+            return;
+        }
+    };
+    tokio::select! {
+        _ = tokio::signal::ctrl_c() => {}
+        _ = sigterm.recv() => {}
+    }
+}
+
+#[cfg(not(unix))]
+async fn wait_for_shutdown_signal() {
+    if let Err(e) = tokio::signal::ctrl_c().await {
+        error!(error = %e, "Failed to listen for Ctrl+C");
+    }
 }

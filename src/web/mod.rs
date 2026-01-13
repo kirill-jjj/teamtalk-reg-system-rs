@@ -19,7 +19,12 @@ pub struct WebState {
     pub available_languages: std::sync::Arc<Vec<(String, String)>>,
 }
 
-pub async fn run_server(config: AppConfig, db: Database, tx_tt: Sender<TTWorkerCommand>) {
+pub async fn run_server(
+    config: AppConfig,
+    db: Database,
+    tx_tt: Sender<TTWorkerCommand>,
+    shutdown: tokio_util::sync::CancellationToken,
+) {
     let state = Arc::new(WebState {
         config: config.clone(),
         db,
@@ -74,10 +79,14 @@ pub async fn run_server(config: AppConfig, db: Database, tx_tt: Sender<TTWorkerC
                     return;
                 }
             };
+            let shutdown_wait = shutdown.clone();
             if let Err(e) = axum::serve(
                 listener,
                 app.into_make_service_with_connect_info::<SocketAddr>(),
             )
+            .with_graceful_shutdown(async move {
+                shutdown_wait.cancelled().await;
+            })
             .await
             {
                 error!(error = %e, "HTTP server failed");
@@ -107,10 +116,12 @@ pub async fn run_server(config: AppConfig, db: Database, tx_tt: Sender<TTWorkerC
                 return;
             }
         };
-        if let Err(e) = axum_server::bind_rustls(addr, tls_config)
-            .serve(app.into_make_service_with_connect_info::<SocketAddr>())
-            .await
-        {
+        let shutdown_wait = shutdown.clone();
+        if let Err(e) = tokio::select! {
+            res = axum_server::bind_rustls(addr, tls_config)
+                .serve(app.into_make_service_with_connect_info::<SocketAddr>()) => res,
+            _ = shutdown_wait.cancelled() => Ok(()),
+        } {
             error!(error = %e, "HTTPS server failed");
         }
         return;
@@ -123,10 +134,14 @@ pub async fn run_server(config: AppConfig, db: Database, tx_tt: Sender<TTWorkerC
             return;
         }
     };
+    let shutdown_wait = shutdown.clone();
     if let Err(e) = axum::serve(
         listener,
         app.into_make_service_with_connect_info::<SocketAddr>(),
     )
+    .with_graceful_shutdown(async move {
+        shutdown_wait.cancelled().await;
+    })
     .await
     {
         error!(error = %e, "HTTP server failed");
