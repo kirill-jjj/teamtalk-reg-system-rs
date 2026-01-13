@@ -76,13 +76,17 @@ async fn main() -> anyhow::Result<()> {
         std::fs::create_dir(&temp_files_dir)?;
     }
 
-    tokio::spawn(async move {
+    let cleanup_shutdown = shutdown.clone();
+    let cleanup_handle = tokio::spawn(async move {
         let mut interval =
             tokio::time::interval(tokio::time::Duration::from_secs(cleanup_interval));
         interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
         interval.tick().await;
         loop {
-            interval.tick().await;
+            tokio::select! {
+                _ = cleanup_shutdown.cancelled() => break,
+                _ = interval.tick() => {}
+            }
             debug!("Running periodic cleanup");
             if let Err(e) = db_clean.cleanup(pending_ttl, registered_ip_ttl).await {
                 error!(error = %e, "DB cleanup failed");
@@ -108,7 +112,7 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
-    tokio::spawn(tt::run_tt_worker(
+    let tt_handle = tokio::spawn(tt::run_tt_worker(
         config_arc.clone(),
         rx_tt,
         bot.clone(),
@@ -117,17 +121,19 @@ async fn main() -> anyhow::Result<()> {
         shutdown.clone(),
     ));
 
-    if config.web_registration_enabled {
+    let web_handle = if config.web_registration_enabled {
         let web_config = config.clone();
         let web_db = db.clone();
         let web_tx = tx_tt.clone();
-        tokio::spawn(web::run_server(
+        Some(tokio::spawn(web::run_server(
             web_config,
             web_db,
             web_tx,
             shutdown.clone(),
-        ));
-    }
+        )))
+    } else {
+        None
+    };
 
     let handler = Update::filter_message()
         .enter_dialogue::<Message, InMemStorage<State>, State>()
@@ -238,7 +244,7 @@ async fn main() -> anyhow::Result<()> {
         dispatcher.dispatch().await;
     });
 
-    tokio::spawn({
+    let shutdown_task = tokio::spawn({
         let shutdown = shutdown.clone();
         async move {
             wait_for_shutdown_signal().await;
@@ -250,9 +256,15 @@ async fn main() -> anyhow::Result<()> {
     });
 
     let _ = dispatch_handle.await;
+    let _ = shutdown_task.await;
+    let _ = cleanup_handle.await;
+    let _ = tt_handle.await;
+    if let Some(handle) = web_handle {
+        let _ = handle.await;
+    }
 
     info!("Closing database pool...");
-    db.pool.close().await;
+    db.close().await;
     info!("Database pool closed.");
 
     Ok(())

@@ -382,4 +382,8 @@ impl Database {
 
         Ok(())
     }
+
+    pub async fn close(&self) {
+        self.pool.close().await;
+    }
 }
