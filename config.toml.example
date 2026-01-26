@@ -62,3 +62,7 @@ registered_ip_ttl_seconds = 2592000
 # --- Telegram Registration Modes ---
 telegram_deeplink_registration_enabled = false
 telegram_public_registration_enabled = true
+
+# log_level controls tracing filter (e.g. "info", "debug", "trace" or
+# "info,teamtalk_reg_system_rs=debug,teloxide=debug")
+log_level = ""

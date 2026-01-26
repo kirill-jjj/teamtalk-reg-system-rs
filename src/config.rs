@@ -83,6 +83,9 @@ pub struct AppConfig {
     pub telegram_deeplink_registration_enabled: bool,
     #[serde(default = "default_true")]
     pub telegram_public_registration_enabled: bool,
+
+    #[serde(default, deserialize_with = "deserialize_optional_string")]
+    pub log_level: Option<String>,
 }
 
 fn deserialize_optional_lang<'de, D>(deserializer: D) -> Result<Option<LanguageCode>, D::Error>
@@ -91,6 +94,21 @@ where
 {
     let opt = Option::<String>::deserialize(deserializer)?;
     Ok(opt.and_then(|s| LanguageCode::parse(&s)))
+}
+
+fn deserialize_optional_string<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let opt = Option::<String>::deserialize(deserializer)?;
+    Ok(opt.and_then(|s| {
+        let trimmed = s.trim();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed.to_string())
+        }
+    }))
 }
 
 fn default_nickname() -> String {

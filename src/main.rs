@@ -31,26 +31,33 @@ struct Args {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
-        )
-        .with_target(false)
-        .init();
-
     let args = Args::parse();
     let config_path = PathBuf::from(&args.config);
-
-    info!("Starting TeamTalk Reg Bot");
-    info!(config_path = ?config_path, "Loading config");
 
     let config = match AppConfig::load(&config_path) {
         Ok(c) => c,
         Err(e) => {
-            error!("Failed to load config: {}", e);
-            return Ok(());
+            eprintln!("Failed to load config: {}", e);
+            return Err(e);
         }
     };
+
+    let env_filter = if let Some(level) = config.log_level.as_ref() {
+        tracing_subscriber::EnvFilter::try_new(level).unwrap_or_else(|e| {
+            eprintln!("Invalid log_level '{}': {}", level, e);
+            tracing_subscriber::EnvFilter::new("info")
+        })
+    } else {
+        tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into())
+    };
+
+    tracing_subscriber::fmt()
+        .with_env_filter(env_filter)
+        .with_target(false)
+        .init();
+
+    info!("Starting TeamTalk Reg Bot");
+    info!(config_path = ?config_path, "Loading config");
 
     let rt_handle = tokio::runtime::Handle::current();
     let shutdown = CancellationToken::new();
