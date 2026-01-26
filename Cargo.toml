@@ -2,6 +2,11 @@
 name = "teamtalk-reg-system-rs"
 version = "0.1.2"
 edition = "2024"
+license = "MIT"
+description = "TeamTalk registration service with Telegram bot and web endpoints"
+repository = "https://github.com/kirill-jjj/teamtalk-reg-system-rs"
+keywords = ["teamtalk", "telegram", "registration", "bot", "rust"]
+categories = ["network-programming", "asynchronous", "web-programming"]
 
 [profile.release]
 lto = true
@@ -42,3 +47,29 @@ tracing-subscriber = { version = "0.3.19", default-features = false, features = 
 
 [target.'cfg(not(windows))'.dependencies]
 tracing-subscriber = { version = "0.3.19", default-features = false, features = ["env-filter", "fmt", "ansi"] }
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }
+correctness = { level = "deny", priority = -1 }
+suspicious = { level = "deny", priority = -1 }
+complexity = { level = "deny", priority = -1 }
+perf = { level = "deny", priority = -1 }
+style = { level = "deny", priority = -1 }
+pedantic = { level = "deny", priority = -1 }
+nursery = { level = "deny", priority = -1 }
+cargo = { level = "deny", priority = -1 }
+dbg_macro = "deny"
+todo = "deny"
+unimplemented = "deny"
+print_stdout = "deny"
+print_stderr = "deny"
+multiple_crate_versions = "allow"
+
+[lints.rust]
+warnings = "deny"
+future_incompatible = { level = "deny", priority = -1 }
+rust_2021_compatibility = { level = "deny", priority = -1 }
+rust_2024_compatibility = { level = "deny", priority = -1 }
+nonstandard_style = { level = "deny", priority = -1 }
+unused = { level = "deny", priority = -1 }
+missing_docs = "deny"

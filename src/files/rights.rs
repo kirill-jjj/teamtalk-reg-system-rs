@@ -1,5 +1,6 @@
 use teamtalk::client::ffi::UserRight;
 
+/// Build `TeamTalk` rights bitmask from string rights list.
 pub fn get_user_rights_mask(rights_list: &[String]) -> u32 {
     let mut mask: u32 = 0;
     for r in rights_list {

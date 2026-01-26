@@ -1,9 +1,11 @@
+/// Parsed metadata about the registration source.
 pub struct SourceInfo {
     pub lang: crate::types::LanguageCode,
     pub tg_username: String,
     pub fullname: String,
 }
 
+/// Parse stored source info into structured fields.
 pub fn parse_source_info(source_info: &str) -> SourceInfo {
     let mut lang = crate::types::LanguageCode::default();
     let mut tg_username = String::new();

@@ -12,11 +12,13 @@ fluent_templates::static_loader! {
     };
 }
 
+/// Translate a message key for the given language.
 pub fn t(lang: &str, key: &str) -> String {
     let lang_id = lang.parse().unwrap_or(unic_langid::langid!("en"));
     LOCALES.lookup(&lang_id, key)
 }
 
+/// Translate a message key with arguments for the given language.
 pub fn t_args(lang: &str, key: &str, args: &HashMap<String, String>) -> String {
     let lang_id = lang.parse().unwrap_or(unic_langid::langid!("en"));
 
@@ -30,6 +32,7 @@ pub fn t_args(lang: &str, key: &str, args: &HashMap<String, String>) -> String {
 
 static LANG_CACHE: OnceLock<Arc<Vec<(String, String)>>> = OnceLock::new();
 
+/// Return a list of available languages (code, display name).
 pub fn available_languages() -> Arc<Vec<(String, String)>> {
     if let Some(cached) = LANG_CACHE.get() {
         return Arc::clone(cached);

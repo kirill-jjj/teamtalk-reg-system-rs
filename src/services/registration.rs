@@ -8,18 +8,21 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc::Sender;
 use tracing::{error, instrument};
 
+/// Assets generated for a registration (tt file, link, filename).
 pub struct RegistrationAssets {
-    pub tt_content: String,
-    pub tt_link: String,
-    pub tt_filename: String,
+    pub content: String,
+    pub link: String,
+    pub filename: String,
 }
 
+/// Result of `TeamTalk` account creation flow.
 pub struct RegistrationResult {
     pub created: bool,
     pub db_sync_error: Option<String>,
     pub assets: Option<RegistrationAssets>,
 }
 
+/// Build registration assets from config and account fields.
 pub fn build_assets(
     config: &AppConfig,
     username: &str,
@@ -28,15 +31,16 @@ pub fn build_assets(
 ) -> RegistrationAssets {
     let tt_content = generate_tt_file_content(config, username, password, nickname);
     let tt_link = generate_tt_link(config, username, password, nickname);
-    let tt_filename = format!("{}.tt", config.server_name);
+    let tt_filename = format!("{}.tt", config.teamtalk.server_name);
 
     RegistrationAssets {
-        tt_content,
-        tt_link,
-        tt_filename,
+        content: tt_content,
+        link: tt_link,
+        filename: tt_filename,
     }
 }
 
+/// Parameters for `TeamTalk` account creation.
 pub struct CreateAccountParams<'a> {
     pub username: &'a Username,
     pub password: &'a Password,
@@ -54,6 +58,7 @@ pub struct CreateAccountParams<'a> {
     skip(params),
     fields(username = %params.username.as_str(), account_type = ?params.account_type)
 )]
+/// Create a `TeamTalk` account and sync DB metadata.
 pub async fn create_teamtalk_account(
     params: CreateAccountParams<'_>,
 ) -> Result<RegistrationResult, Box<dyn Error + Send + Sync>> {
@@ -84,14 +89,16 @@ pub async fn create_teamtalk_account(
         return Err(Box::new(e));
     }
 
-    match rx.await {
+    let result = rx.await;
+    match result {
         Ok(Ok(true)) => {
-            let mut db_sync_error = None;
-            if let Some(tg_id) = telegram_id
+            let db_sync_error = if let Some(tg_id) = telegram_id
                 && let Err(e) = db.add_registration(tg_id, username.as_str()).await
             {
-                db_sync_error = Some(e.to_string());
-            }
+                Some(e.to_string())
+            } else {
+                None
+            };
 
             let assets = build_assets(
                 config,
@@ -132,18 +139,20 @@ pub async fn create_teamtalk_account(
     }
 }
 
+/// Resolve temp directory used for generated files.
 pub fn temp_dir() -> PathBuf {
     std::env::current_dir()
         .unwrap_or_else(|_| PathBuf::from("."))
         .join("temp_files")
 }
 
+/// Try to create a client ZIP if template is present.
 pub async fn try_create_client_zip_async(
     config: &AppConfig,
     output_path: &Path,
     assets: &RegistrationAssets,
 ) -> bool {
-    let Some(tpl_dir) = &config.teamtalk_client_template_dir else {
+    let Some(tpl_dir) = &config.web.teamtalk_client_template_dir else {
         return false;
     };
     if !Path::new(tpl_dir).exists() {
@@ -152,8 +161,8 @@ pub async fn try_create_client_zip_async(
 
     let tpl_dir = tpl_dir.clone();
     let output_path = output_path.to_path_buf();
-    let tt_filename = assets.tt_filename.clone();
-    let tt_content = assets.tt_content.clone();
+    let tt_filename = assets.filename.clone();
+    let tt_content = assets.content.clone();
 
     tokio::task::spawn_blocking(move || {
         create_client_zip(&tpl_dir, &output_path, &tt_filename, &tt_content).is_ok()

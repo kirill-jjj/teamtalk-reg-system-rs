@@ -2,12 +2,14 @@ use crate::types::TelegramId;
 use chrono::NaiveDateTime;
 use sqlx::FromRow;
 
+/// Row for Telegram registrations table.
 #[derive(Debug, FromRow)]
 pub struct TelegramRegistration {
     pub telegram_id: TelegramId,
     pub teamtalk_username: String,
 }
 
+/// Row for pending registration table.
 #[derive(Debug, FromRow)]
 #[allow(dead_code)]
 pub struct PendingTelegramRegistration {
@@ -21,6 +23,7 @@ pub struct PendingTelegramRegistration {
     pub created_at: NaiveDateTime,
 }
 
+/// Row for banned users table.
 #[derive(Debug, FromRow)]
 #[allow(dead_code)]
 pub struct BannedUser {
@@ -31,6 +34,7 @@ pub struct BannedUser {
     pub reason: Option<String>,
 }
 
+/// Row for download tokens table.
 #[derive(Debug, FromRow)]
 #[allow(dead_code)]
 pub struct FastapiDownloadToken {
@@ -43,6 +47,7 @@ pub struct FastapiDownloadToken {
     pub is_used: bool,
 }
 
+/// Row for registered IP table.
 #[derive(Debug, FromRow)]
 #[allow(dead_code)]
 pub struct FastapiRegisteredIp {
@@ -51,6 +56,7 @@ pub struct FastapiRegisteredIp {
     pub registration_timestamp: NaiveDateTime,
 }
 
+/// Row for deeplink tokens table.
 #[derive(Debug, FromRow)]
 #[allow(dead_code)]
 pub struct DeeplinkToken {

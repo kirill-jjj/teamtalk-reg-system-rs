@@ -4,6 +4,7 @@ use std::net::IpAddr;
 use std::str::FromStr;
 use unic_langid::LanguageIdentifier;
 
+/// Telegram user info stored in the database.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[allow(dead_code)]
 pub struct UserInfo {
@@ -12,6 +13,7 @@ pub struct UserInfo {
     pub telegram_id: Option<TelegramId>,
 }
 
+/// Online `TeamTalk` user info.
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct OnlineUser {
@@ -22,16 +24,19 @@ pub struct OnlineUser {
     pub user_type: u8,
 }
 
+/// Telegram user identifier wrapper.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, sqlx::Type)]
 #[sqlx(transparent)]
 pub struct TelegramId(i64);
 
 impl TelegramId {
-    pub fn new(id: i64) -> Self {
+    /// Create a new `TelegramId`.
+    pub const fn new(id: i64) -> Self {
         Self(id)
     }
 
-    pub fn as_i64(self) -> i64 {
+    /// Return the raw identifier value.
+    pub const fn as_i64(self) -> i64 {
         self.0
     }
 }
@@ -54,10 +59,12 @@ impl From<TelegramId> for i64 {
     }
 }
 
+/// Language code wrapper (BCP-47/Fluent).
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct LanguageCode(String);
 
 impl LanguageCode {
+    /// Parse a language code, returning `None` if empty or invalid.
     pub fn parse(input: &str) -> Option<Self> {
         let trimmed = input.trim();
         if trimmed.is_empty() {
@@ -68,10 +75,12 @@ impl LanguageCode {
         }
     }
 
+    /// Parse a language code or fall back to default.
     pub fn parse_or_default(input: &str) -> Self {
         Self::parse(input).unwrap_or_default()
     }
 
+    /// Return the inner string slice.
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -104,22 +113,25 @@ impl<'de> Deserialize<'de> for LanguageCode {
         D: serde::Deserializer<'de>,
     {
         let raw = String::deserialize(deserializer)?;
-        LanguageCode::parse(&raw).ok_or_else(|| serde::de::Error::custom("invalid language code"))
+        Self::parse(&raw).ok_or_else(|| serde::de::Error::custom("invalid language code"))
     }
 }
 
+/// Origin of a registration request.
 #[derive(Debug, Clone)]
 pub enum RegistrationSource {
     Telegram(TelegramId),
     Web(IpAddr),
 }
 
+/// `TeamTalk` account type.
 #[derive(Debug, Clone, Copy)]
 pub enum TTAccountType {
     Default,
     Admin,
 }
 
+/// Type of downloadable asset.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DownloadTokenType {
     TtConfig,
@@ -127,10 +139,11 @@ pub enum DownloadTokenType {
 }
 
 impl DownloadTokenType {
-    pub fn as_str(&self) -> &'static str {
+    /// Convert token type to its storage string.
+    pub const fn as_str(self) -> &'static str {
         match self {
-            DownloadTokenType::TtConfig => "tt_config",
-            DownloadTokenType::ClientZip => "client_zip",
+            Self::TtConfig => "tt_config",
+            Self::ClientZip => "client_zip",
         }
     }
 }
@@ -140,13 +153,14 @@ impl TryFrom<&str> for DownloadTokenType {
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         match value {
-            "tt_config" => Ok(DownloadTokenType::TtConfig),
-            "client_zip" => Ok(DownloadTokenType::ClientZip),
+            "tt_config" => Ok(Self::TtConfig),
+            "client_zip" => Ok(Self::ClientZip),
             _ => Err(()),
         }
     }
 }
 
+/// Commands for the `TeamTalk` worker thread.
 #[derive(Debug)]
 pub enum TTWorkerCommand {
     CreateAccount {

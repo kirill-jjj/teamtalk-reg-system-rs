@@ -5,6 +5,7 @@ use askama_derive_axum::IntoResponse;
 use serde::Deserialize;
 use std::collections::HashMap;
 
+/// Template context for the registration page.
 #[derive(Template, IntoResponse)]
 #[template(path = "register.html")]
 pub struct RegisterTemplate {
@@ -51,15 +52,16 @@ pub struct RegisterTemplate {
 }
 
 impl RegisterTemplate {
+    /// Build a new registration page template.
     pub fn new(
-        server_name: String,
+        server_name: &str,
         lang: &LanguageCode,
         available_languages: Vec<(String, String)>,
         language_forced: bool,
         generated_file_ttl_seconds: u64,
     ) -> Self {
         let mut args = HashMap::new();
-        args.insert("server_name".to_string(), server_name.clone());
+        args.insert("server_name".to_string(), server_name.to_string());
 
         Self {
             message: None,
@@ -67,9 +69,9 @@ impl RegisterTemplate {
             message_class_safe: "info".to_string(),
             additional_message_info: None,
             registration_complete: false,
-            server_name: server_name.clone(),
-            username_val: "".to_string(),
-            nickname_val: "".to_string(),
+            server_name: server_name.to_string(),
+            username_val: String::new(),
+            nickname_val: String::new(),
             tt_link: None,
             download_tt_token: None,
             download_client_zip_token: None,
@@ -106,6 +108,7 @@ impl RegisterTemplate {
     }
 }
 
+/// Registration form payload.
 #[derive(Deserialize)]
 pub struct RegisterForm {
     pub username: String,

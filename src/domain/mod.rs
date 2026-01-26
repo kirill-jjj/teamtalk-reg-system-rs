@@ -1,13 +1,17 @@
+/// `TeamTalk` username wrapper.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Username(String);
 
+/// `TeamTalk` password wrapper.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Password(String);
 
+/// `TeamTalk` nickname wrapper.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Nickname(String);
 
 impl Username {
+    /// Parse a username from input text.
     pub fn parse(input: &str) -> Option<Self> {
         let trimmed = input.trim();
         if trimmed.is_empty() {
@@ -17,6 +21,7 @@ impl Username {
         }
     }
 
+    /// Return the inner string slice.
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -29,6 +34,7 @@ impl std::fmt::Display for Username {
 }
 
 impl Password {
+    /// Parse a password from input text.
     pub fn parse(input: &str) -> Option<Self> {
         let trimmed = input.trim();
         if trimmed.is_empty() {
@@ -38,12 +44,14 @@ impl Password {
         }
     }
 
+    /// Return the inner string slice.
     pub fn as_str(&self) -> &str {
         &self.0
     }
 }
 
 impl Nickname {
+    /// Parse a nickname from input text.
     pub fn parse(input: &str) -> Option<Self> {
         let trimmed = input.trim();
         if trimmed.is_empty() {
@@ -53,6 +61,7 @@ impl Nickname {
         }
     }
 
+    /// Return the inner string slice.
     pub fn as_str(&self) -> &str {
         &self.0
     }

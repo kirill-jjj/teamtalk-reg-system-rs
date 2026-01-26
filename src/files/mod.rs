@@ -1,6 +1,10 @@
+/// Link generators for client shortcuts.
 pub mod links;
+/// Rights mask helpers.
 pub mod rights;
+/// `.tt` file generators.
 pub mod tt;
+/// ZIP generation helpers.
 pub mod zip;
 
 pub use links::generate_tt_link;

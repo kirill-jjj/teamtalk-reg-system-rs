@@ -5,6 +5,7 @@ use std::path::Path;
 use walkdir::WalkDir;
 use zip::write::FileOptions;
 
+/// Create a `TeamTalk` client ZIP from template directory.
 pub fn create_client_zip(
     template_path: &str,
     output_path: &Path,
@@ -15,8 +16,7 @@ pub fn create_client_zip(
 
     if !tpl_path.exists() {
         return Err(anyhow::anyhow!(
-            "Template directory does not exist: {}",
-            template_path
+            "Template directory does not exist: {template_path}"
         ));
     }
 
@@ -47,7 +47,7 @@ pub fn create_client_zip(
         std::io::copy(&mut f, &mut zip)?;
     }
 
-    let tt_entry_name = format!("Client/{}", tt_filename);
+    let tt_entry_name = format!("Client/{tt_filename}");
     zip.start_file(tt_entry_name, options)?;
     zip.write_all(tt_content.as_bytes())?;
 

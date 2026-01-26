@@ -6,6 +6,7 @@ use crate::i18n::{t, t_args};
 use crate::services::registration;
 use crate::types::{LanguageCode, RegistrationSource, TTAccountType, TTWorkerCommand, TelegramId};
 use std::collections::HashMap;
+use std::fmt::Write as _;
 use std::sync::Arc;
 use std::sync::mpsc::Sender;
 use teloxide::prelude::*;
@@ -17,6 +18,7 @@ async fn is_banned(db: &Database, chat_id: TelegramId) -> bool {
     db.get_banned_user(chat_id).await.unwrap_or(None).is_some()
 }
 
+/// Start the registration conversation.
 pub async fn start(
     bot: Bot,
     msg: Message,
@@ -30,20 +32,22 @@ pub async fn start(
         return Ok(());
     }
 
-    let is_admin = config.admin_ids.contains(&chat_id);
+    let is_admin = config.telegram.admin_ids.contains(&chat_id);
     let initial_lang = msg
         .from
         .as_ref()
         .and_then(|u| u.language_code.as_deref())
-        .map(LanguageCode::parse_or_default)
-        .unwrap_or_else(|| config.bot_admin_lang.clone());
+        .map_or_else(
+            || config.telegram.bot_admin_lang.clone(),
+            LanguageCode::parse_or_default,
+        );
     let text = msg.text().unwrap_or("");
     let args: Vec<&str> = text.split_whitespace().collect();
 
     let mut is_deeplink = false;
     if args.len() > 1 {
         let token = args[1];
-        if !config.telegram_deeplink_registration_enabled {
+        if !config.telegram.telegram_deeplink_registration_enabled {
             bot.send_message(msg.chat.id, t(initial_lang.as_str(), "deeplink-disabled"))
                 .await?;
             return Ok(());
@@ -66,7 +70,7 @@ pub async fn start(
                 .await?;
             return Ok(());
         }
-    } else if !config.telegram_public_registration_enabled && !is_admin {
+    } else if !config.telegram.telegram_public_registration_enabled && !is_admin {
         return Ok(());
     }
 
@@ -76,7 +80,7 @@ pub async fn start(
         return Ok(());
     }
 
-    if let Some(lang) = &config.force_user_lang {
+    if let Some(lang) = &config.web.force_user_lang {
         bot.send_message(msg.chat.id, t(lang.as_str(), "username-prompt"))
             .await?;
         dialogue
@@ -98,6 +102,7 @@ pub async fn start(
     Ok(())
 }
 
+/// Handle language selection callback.
 pub async fn receive_language(bot: Bot, q: CallbackQuery, dialogue: MyDialogue) -> HandlerResult {
     if let Some(data) = q.data {
         let lang = LanguageCode::parse_or_default(&data.replace("lang_", ""));
@@ -117,6 +122,7 @@ pub async fn receive_language(bot: Bot, q: CallbackQuery, dialogue: MyDialogue) 
     Ok(())
 }
 
+/// Handle username input.
 pub async fn receive_username(
     bot: Bot,
     msg: Message,
@@ -171,6 +177,7 @@ pub async fn receive_username(
     Ok(())
 }
 
+/// Handle password input.
 pub async fn receive_password(bot: Bot, msg: Message, dialogue: MyDialogue) -> HandlerResult {
     let Some(State::AwaitingPassword { lang, username }) = (match dialogue.get().await {
         Ok(state) => state,
@@ -209,6 +216,7 @@ pub async fn receive_password(bot: Bot, msg: Message, dialogue: MyDialogue) -> H
     Ok(())
 }
 
+/// Handle nickname choice callback.
 pub async fn receive_nickname_choice(
     bot: Bot,
     q: CallbackQuery,
@@ -259,22 +267,27 @@ pub async fn receive_nickname_choice(
                 dialogue.exit().await?;
                 return Ok(());
             };
-            if config.admin_ids.contains(&TelegramId::new(msg.chat().id.0)) {
+            if config
+                .telegram
+                .admin_ids
+                .contains(&TelegramId::new(msg.chat().id.0))
+            {
                 ask_account_type(bot, msg.chat().id, lang, username, password, nick, dialogue)
                     .await?;
                 return Ok(());
             }
-            handle_registration_end(
+            handle_registration_end_with_type(RegistrationEndInput {
                 bot,
-                msg.chat().id,
+                chat_id: msg.chat().id,
                 lang,
                 username,
                 password,
-                nick,
+                nickname: nick,
+                account_type: TTAccountType::Default,
                 tx_tt,
                 db,
                 config,
-            )
+            })
             .await?;
         } else {
             warn!("Nickname choice callback missing message");
@@ -290,6 +303,7 @@ pub async fn receive_nickname_choice(
     Ok(())
 }
 
+/// Handle custom nickname input.
 pub async fn receive_nickname(
     bot: Bot,
     msg: Message,
@@ -318,7 +332,11 @@ pub async fn receive_nickname(
             .await?;
         return Ok(());
     };
-    if config.admin_ids.contains(&TelegramId::new(msg.chat.id.0)) {
+    if config
+        .telegram
+        .admin_ids
+        .contains(&TelegramId::new(msg.chat.id.0))
+    {
         ask_account_type(
             bot,
             msg.chat.id,
@@ -331,22 +349,24 @@ pub async fn receive_nickname(
         .await?;
         return Ok(());
     }
-    handle_registration_end(
+    handle_registration_end_with_type(RegistrationEndInput {
         bot,
-        msg.chat.id,
+        chat_id: msg.chat.id,
         lang,
         username,
         password,
         nickname,
+        account_type: TTAccountType::Default,
         tx_tt,
         db,
         config,
-    )
+    })
     .await?;
     dialogue.exit().await?;
     Ok(())
 }
 
+/// Handle account type selection callback for admin registrations.
 pub async fn receive_account_type(
     bot: Bot,
     q: CallbackQuery,
@@ -385,9 +405,9 @@ pub async fn receive_account_type(
     };
 
     if let Some(msg) = q.message {
-        handle_registration_end_with_type(
+        handle_registration_end_with_type(RegistrationEndInput {
             bot,
-            msg.chat().id,
+            chat_id: msg.chat().id,
             lang,
             username,
             password,
@@ -396,7 +416,7 @@ pub async fn receive_account_type(
             tx_tt,
             db,
             config,
-        )
+        })
         .await?;
     } else {
         warn!("Account type callback missing message");
@@ -405,35 +425,7 @@ pub async fn receive_account_type(
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
-async fn handle_registration_end(
-    bot: Bot,
-    chat_id: ChatId,
-    lang: LanguageCode,
-    username: Username,
-    password: Password,
-    nickname: Nickname,
-    tx_tt: Sender<TTWorkerCommand>,
-    db: Database,
-    config: Arc<AppConfig>,
-) -> HandlerResult {
-    handle_registration_end_with_type(
-        bot,
-        chat_id,
-        lang,
-        username,
-        password,
-        nickname,
-        TTAccountType::Default,
-        tx_tt,
-        db,
-        config,
-    )
-    .await
-}
-
-#[allow(clippy::too_many_arguments)]
-async fn handle_registration_end_with_type(
+struct RegistrationEndInput {
     bot: Bot,
     chat_id: ChatId,
     lang: LanguageCode,
@@ -444,168 +436,279 @@ async fn handle_registration_end_with_type(
     tx_tt: Sender<TTWorkerCommand>,
     db: Database,
     config: Arc<AppConfig>,
-) -> HandlerResult {
-    let is_admin = config.admin_ids.contains(&TelegramId::new(chat_id.0));
+}
 
-    if config.verify_registration && !is_admin {
-        let request_id = Uuid::new_v4().to_string();
-        let user_info = bot.get_chat(chat_id).await;
-        let (fullname, tg_username) = match user_info {
-            Ok(u) => (
-                u.first_name().unwrap_or("Unknown").to_string(),
-                u.username().unwrap_or("").to_string(),
-            ),
-            Err(e) => {
-                warn!(error = %e, "Failed to fetch Telegram user info");
-                ("Unknown".to_string(), "".to_string())
-            }
-        };
-        let source_info = format!(
-            "lang={};tg_username={};fullname={}",
-            lang.as_str(),
-            tg_username,
-            fullname
-        );
-        if db
-            .add_pending_registration(
-                &request_id,
-                TelegramId::new(chat_id.0),
-                username.as_str(),
-                password.as_str(),
-                nickname.as_str(),
-                &source_info,
-            )
-            .await
-            .is_err()
-        {
-            bot.send_message(chat_id, t(lang.as_str(), "admin-submit-error"))
-                .await?;
-            return Ok(());
-        }
+async fn handle_registration_end_with_type(input: RegistrationEndInput) -> HandlerResult {
+    let RegistrationEndInput {
+        bot,
+        chat_id,
+        lang,
+        username,
+        password,
+        nickname,
+        account_type,
+        tx_tt,
+        db,
+        config,
+    } = input;
+    let is_admin = config
+        .telegram
+        .admin_ids
+        .contains(&TelegramId::new(chat_id.0));
 
-        bot.send_message(chat_id, t(lang.as_str(), "admin-approval-sent"))
-            .await?;
-
-        let admin_lang = config.bot_admin_lang.clone();
-
-        let mut text = String::new();
-        text.push_str(&t(admin_lang.as_str(), "admin-request-title"));
-        text.push('\n');
-        text.push_str(&t(admin_lang.as_str(), "admin-request-username"));
-        text.push(' ');
-        text.push_str(username.as_str());
-        text.push('\n');
-        if nickname.as_str() != username.as_str() {
-            text.push_str(&t(admin_lang.as_str(), "admin-request-nickname"));
-            text.push(' ');
-            text.push_str(nickname.as_str());
-            text.push('\n');
-        }
-        let mut tg_line = String::new();
-        tg_line.push_str(&fullname);
-        if !tg_username.is_empty() {
-            tg_line.push_str(" (@");
-            tg_line.push_str(&tg_username);
-            tg_line.push(')');
-        }
-        tg_line.push_str(" (ID: ");
-        tg_line.push_str(&chat_id.0.to_string());
-        tg_line.push(')');
-        text.push_str(&t(admin_lang.as_str(), "admin-request-telegram-user"));
-        text.push(' ');
-        text.push_str(&tg_line);
-        text.push('\n');
-        text.push_str(&t(admin_lang.as_str(), "admin-request-approve"));
-
-        let keyboard = crate::tg_bot::keyboards::admin_approval_keyboard(
-            &t(admin_lang.as_str(), "btn-admin-verify"),
-            &t(admin_lang.as_str(), "btn-admin-reject"),
-            &request_id,
-        );
-
-        for &admin_id in &config.admin_ids {
-            if let Err(e) = bot
-                .send_message(ChatId(admin_id.as_i64()), &text)
-                .reply_markup(keyboard.clone())
-                .await
-            {
-                warn!(error = %e, admin_id = %admin_id, "Failed to send admin approval message");
-            }
-        }
-    } else {
-        let (tg_fullname, tg_username) = match bot.get_chat(chat_id).await {
-            Ok(u) => {
-                let first = u.first_name().unwrap_or("Unknown");
-                let last = u.last_name().unwrap_or("");
-                let fullname = if last.is_empty() {
-                    first.to_string()
-                } else {
-                    format!("{} {}", first, last)
-                };
-                let username = u.username().map(|u| u.to_string()).unwrap_or_default();
-                (fullname, username)
-            }
-            Err(e) => {
-                warn!(error = %e, "Failed to fetch Telegram user info");
-                ("Unknown".to_string(), String::new())
-            }
-        };
-        let mut source_info = format!("Telegram ID: {}", chat_id.0);
-        if !tg_username.is_empty() {
-            source_info.push_str(&format!(", username: @{}", tg_username));
-        }
-        if !tg_fullname.is_empty() {
-            source_info.push_str(&format!(", name: {}", tg_fullname));
-        }
-
-        let result = registration::create_teamtalk_account(registration::CreateAccountParams {
+    if config.telegram.verify_registration && !is_admin {
+        handle_admin_verification(AdminVerificationInput {
+            bot: &bot,
+            chat_id,
+            lang,
             username: &username,
             password: &password,
             nickname: &nickname,
-            account_type,
-            source: RegistrationSource::Telegram(TelegramId::new(chat_id.0)),
-            source_info: Some(source_info),
-            telegram_id: Some(TelegramId::new(chat_id.0)),
-            tx_tt,
             db: &db,
             config: &config,
         })
         .await?;
+        return Ok(());
+    }
 
-        if !result.created {
-            bot.send_message(chat_id, t(lang.as_str(), "register-error"))
-                .await?;
-            return Ok(());
-        }
+    handle_direct_registration(DirectRegistrationInput {
+        bot: &bot,
+        chat_id,
+        lang,
+        username: &username,
+        password: &password,
+        nickname: &nickname,
+        account_type,
+        tx_tt,
+        db: &db,
+        config: &config,
+    })
+    .await?;
+    Ok(())
+}
 
-        if let Some(err) = result.db_sync_error {
-            notify_db_sync_error(&bot, &config, chat_id, username.as_str(), &err).await;
-            if let Err(e) = bot
-                .send_message(chat_id, t(lang.as_str(), "register-success-db-sync-issue"))
-                .await
-            {
-                warn!(error = %e, "Failed to notify user about db sync issue");
-            }
-        }
+struct AdminVerificationInput<'a> {
+    bot: &'a Bot,
+    chat_id: ChatId,
+    lang: LanguageCode,
+    username: &'a Username,
+    password: &'a Password,
+    nickname: &'a Nickname,
+    db: &'a Database,
+    config: &'a AppConfig,
+}
 
-        let args = HashMap::from([("username".to_string(), username.as_str().to_string())]);
-        bot.send_message(chat_id, t_args(lang.as_str(), "register-success", &args))
+struct DirectRegistrationInput<'a> {
+    bot: &'a Bot,
+    chat_id: ChatId,
+    lang: LanguageCode,
+    username: &'a Username,
+    password: &'a Password,
+    nickname: &'a Nickname,
+    account_type: TTAccountType,
+    tx_tt: Sender<TTWorkerCommand>,
+    db: &'a Database,
+    config: &'a AppConfig,
+}
+
+async fn handle_admin_verification(input: AdminVerificationInput<'_>) -> HandlerResult {
+    let AdminVerificationInput {
+        bot,
+        chat_id,
+        lang,
+        username,
+        password,
+        nickname,
+        db,
+        config,
+    } = input;
+    let request_id = Uuid::new_v4().to_string();
+    let (fullname, tg_username) = fetch_user_info(bot, chat_id).await;
+    let source_info = format!(
+        "lang={};tg_username={};fullname={}",
+        lang.as_str(),
+        tg_username,
+        fullname
+    );
+    if db
+        .add_pending_registration(
+            &request_id,
+            TelegramId::new(chat_id.0),
+            username.as_str(),
+            password.as_str(),
+            nickname.as_str(),
+            &source_info,
+        )
+        .await
+        .is_err()
+    {
+        bot.send_message(chat_id, t(lang.as_str(), "admin-submit-error"))
             .await?;
+        return Ok(());
+    }
 
-        if let Some(assets) = result.assets {
-            send_registration_assets(
-                &bot,
-                chat_id,
-                lang.as_str(),
-                &config,
-                username.as_str(),
-                password.as_str(),
-                &assets,
-            )
-            .await?;
+    bot.send_message(chat_id, t(lang.as_str(), "admin-approval-sent"))
+        .await?;
+
+    let admin_lang = config.telegram.bot_admin_lang.clone();
+    let text = build_admin_request_text(
+        admin_lang.as_str(),
+        chat_id,
+        username,
+        nickname,
+        &fullname,
+        &tg_username,
+    );
+
+    let keyboard = crate::tg_bot::keyboards::admin_approval_keyboard(
+        &t(admin_lang.as_str(), "btn-admin-verify"),
+        &t(admin_lang.as_str(), "btn-admin-reject"),
+        &request_id,
+    );
+
+    for &admin_id in &config.telegram.admin_ids {
+        if let Err(e) = bot
+            .send_message(ChatId(admin_id.as_i64()), &text)
+            .reply_markup(keyboard.clone())
+            .await
+        {
+            warn!(error = %e, admin_id = %admin_id, "Failed to send admin approval message");
         }
     }
+
     Ok(())
+}
+
+async fn handle_direct_registration(input: DirectRegistrationInput<'_>) -> HandlerResult {
+    let DirectRegistrationInput {
+        bot,
+        chat_id,
+        lang,
+        username,
+        password,
+        nickname,
+        account_type,
+        tx_tt,
+        db,
+        config,
+    } = input;
+    let (tg_fullname, tg_username) = fetch_user_info(bot, chat_id).await;
+    let mut source_info = format!("Telegram ID: {}", chat_id.0);
+    if !tg_username.is_empty() {
+        let _ = write!(&mut source_info, ", username: @{tg_username}");
+    }
+    if !tg_fullname.is_empty() {
+        let _ = write!(&mut source_info, ", name: {tg_fullname}");
+    }
+
+    let result = registration::create_teamtalk_account(registration::CreateAccountParams {
+        username,
+        password,
+        nickname,
+        account_type,
+        source: RegistrationSource::Telegram(TelegramId::new(chat_id.0)),
+        source_info: Some(source_info),
+        telegram_id: Some(TelegramId::new(chat_id.0)),
+        tx_tt,
+        db,
+        config,
+    })
+    .await?;
+
+    if !result.created {
+        bot.send_message(chat_id, t(lang.as_str(), "register-error"))
+            .await?;
+        return Ok(());
+    }
+
+    if let Some(err) = result.db_sync_error {
+        notify_db_sync_error(bot, config, chat_id, username.as_str(), &err).await;
+        if let Err(e) = bot
+            .send_message(chat_id, t(lang.as_str(), "register-success-db-sync-issue"))
+            .await
+        {
+            warn!(error = %e, "Failed to notify user about db sync issue");
+        }
+    }
+
+    let args = HashMap::from([("username".to_string(), username.as_str().to_string())]);
+    bot.send_message(chat_id, t_args(lang.as_str(), "register-success", &args))
+        .await?;
+
+    if let Some(assets) = result.assets {
+        send_registration_assets(
+            bot,
+            chat_id,
+            lang.as_str(),
+            config,
+            username.as_str(),
+            password.as_str(),
+            &assets,
+        )
+        .await?;
+    }
+
+    Ok(())
+}
+
+async fn fetch_user_info(bot: &Bot, chat_id: ChatId) -> (String, String) {
+    match bot.get_chat(chat_id).await {
+        Ok(u) => {
+            let first = u.first_name().unwrap_or("Unknown");
+            let last = u.last_name().unwrap_or("");
+            let fullname = if last.is_empty() {
+                first.to_string()
+            } else {
+                format!("{first} {last}")
+            };
+            let username = u.username().map(ToString::to_string).unwrap_or_default();
+            (fullname, username)
+        }
+        Err(e) => {
+            warn!(error = %e, "Failed to fetch Telegram user info");
+            ("Unknown".to_string(), String::new())
+        }
+    }
+}
+
+fn build_admin_request_text(
+    lang: &str,
+    chat_id: ChatId,
+    username: &Username,
+    nickname: &Nickname,
+    fullname: &str,
+    tg_username: &str,
+) -> String {
+    let mut text = String::new();
+    text.push_str(&t(lang, "admin-request-title"));
+    text.push('\n');
+    text.push_str(&t(lang, "admin-request-username"));
+    text.push(' ');
+    text.push_str(username.as_str());
+    text.push('\n');
+    if nickname.as_str() != username.as_str() {
+        text.push_str(&t(lang, "admin-request-nickname"));
+        text.push(' ');
+        text.push_str(nickname.as_str());
+        text.push('\n');
+    }
+
+    let mut tg_line = String::new();
+    tg_line.push_str(fullname);
+    if !tg_username.is_empty() {
+        tg_line.push_str(" (@");
+        tg_line.push_str(tg_username);
+        tg_line.push(')');
+    }
+    tg_line.push_str(" (ID: ");
+    tg_line.push_str(&chat_id.0.to_string());
+    tg_line.push(')');
+    text.push_str(&t(lang, "admin-request-telegram-user"));
+    text.push(' ');
+    text.push_str(&tg_line);
+    text.push('\n');
+    text.push_str(&t(lang, "admin-request-approve"));
+    text
 }
 
 pub(super) async fn send_registration_assets(
@@ -618,8 +721,8 @@ pub(super) async fn send_registration_assets(
     assets: &registration::RegistrationAssets,
 ) -> HandlerResult {
     trace!(chat_id = chat_id.0, username, "Sending registration assets");
-    let file_tt = InputFile::memory(assets.tt_content.clone().into_bytes())
-        .file_name(assets.tt_filename.clone());
+    let file_tt =
+        InputFile::memory(assets.content.clone().into_bytes()).file_name(assets.filename.clone());
     if let Err(e) = bot
         .send_document(chat_id, file_tt)
         .caption(t(lang, "file-caption"))
@@ -633,7 +736,7 @@ pub(super) async fn send_registration_assets(
 
     let link_text = t(lang, "link-text");
     if let Err(e) = bot
-        .send_message(chat_id, format!("{}\n{}", link_text, assets.tt_link))
+        .send_message(chat_id, format!("{}\n{}", link_text, assets.link))
         .await
     {
         warn!(error = %e, "Failed to send TT link");
@@ -642,10 +745,11 @@ pub(super) async fn send_registration_assets(
     }
 
     let public_host = config
+        .teamtalk
         .tt_public_hostname
         .as_deref()
         .filter(|value| !value.trim().is_empty())
-        .unwrap_or(&config.host_name);
+        .unwrap_or(&config.teamtalk.host_name);
     let host_msg = t_args(
         lang,
         "msg-host",
@@ -654,19 +758,19 @@ pub(super) async fn send_registration_assets(
     let port_msg = t_args(
         lang,
         "msg-port",
-        &HashMap::from([("port".to_string(), config.tcp_port.to_string())]),
+        &HashMap::from([("port".to_string(), config.teamtalk.tcp_port.to_string())]),
     );
 
     bot.send_message(chat_id, host_msg).await?;
     bot.send_message(chat_id, port_msg).await?;
 
-    let zip_filename = format!("{}_TeamTalk.zip", username);
+    let zip_filename = format!("{username}_TeamTalk.zip");
     let zip_path = registration::temp_dir().join(&zip_filename);
     if registration::try_create_client_zip_async(config, &zip_path, assets).await
         && let Ok(metadata) = tokio::fs::metadata(&zip_path).await
     {
-        let size_mb = metadata.len() as f64 / 1024.0 / 1024.0;
-        if size_mb < 49.0 {
+        let size_mb = metadata.len() / 1_048_576;
+        if size_mb < 49 {
             let file_zip = InputFile::file(zip_path.clone()).file_name(zip_filename);
             if let Err(e) = bot.send_document(chat_id, file_zip).await {
                 error!(error = %e, "Failed to send ZIP");
@@ -686,14 +790,14 @@ pub(super) async fn notify_db_sync_error(
     username: &str,
     err: &str,
 ) {
-    for &admin_id in &config.admin_ids {
+    for &admin_id in &config.telegram.admin_ids {
         if admin_id.as_i64() != chat_id.0
             && let Err(e) = bot
                 .send_message(
                     ChatId(admin_id.as_i64()),
                     format!(
-                        "DB SYNC ERROR (Exception): User {} (TG ID: {}) created in TeamTalk but FAILED local DB save. Exception: {}",
-                        username, chat_id.0, err
+                        "DB SYNC ERROR (Exception): User {username} (TG ID: {}) created in TeamTalk but FAILED local DB save. Exception: {err}",
+                        chat_id.0
                     ),
                 )
                 .await

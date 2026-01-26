@@ -13,17 +13,24 @@ pub use registration::{
     receive_password, receive_username, start,
 };
 
+/// Supported bot commands.
 #[derive(BotCommands, Clone, Debug)]
 #[command(rename_rule = "lowercase")]
 pub enum Command {
+    /// Start the registration flow.
     Start,
+    /// Open admin panel.
     AdminPanel,
+    /// Generate a one-time invite link.
     Generate,
+    /// Gracefully stop the bot.
     Exit,
+    /// Show help.
     Help,
 }
 
-#[derive(Clone, Default, Debug, PartialEq)]
+/// Dialogue states for the Telegram registration flow.
+#[derive(Clone, Default, Debug, PartialEq, Eq)]
 pub enum State {
     #[default]
     Start,
@@ -55,5 +62,7 @@ pub enum State {
     AwaitingManualBanInput,
 }
 
+/// Dialogue type used by handlers.
 pub type MyDialogue = Dialogue<State, InMemStorage<State>>;
+/// Result type returned by handlers.
 pub type HandlerResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;

@@ -8,9 +8,14 @@ use std::str::FromStr;
 use std::time::Duration;
 use tracing::trace;
 
+/// Database schema row types.
 pub mod schema;
-use schema::*;
+use schema::{
+    BannedUser, DeeplinkToken, FastapiDownloadToken, PendingTelegramRegistration,
+    TelegramRegistration,
+};
 
+/// Database access layer.
 #[derive(Clone)]
 pub struct Database {
     pub pool: Pool<Sqlite>,
@@ -19,8 +24,9 @@ pub struct Database {
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations");
 
 impl Database {
+    /// `new` database operation.
     pub async fn new(db_filename: &str) -> Result<Self> {
-        let db_url = format!("sqlite://{}", db_filename);
+        let db_url = format!("sqlite://{db_filename}");
 
         if !Path::new(db_filename).exists() {
             if let Some(parent) = Path::new(db_filename).parent() {
@@ -60,6 +66,7 @@ impl Database {
         Ok(db)
     }
 
+    /// `is_telegram_registered` database operation.
     pub async fn is_telegram_registered(&self, tg_id: TelegramId) -> Result<bool> {
         let count: i64 = sqlx::query_scalar!(
             "SELECT count(*) FROM telegram_registrations WHERE telegram_id = ?",
@@ -70,6 +77,7 @@ impl Database {
         Ok(count > 0)
     }
 
+    /// `add_registration` database operation.
     pub async fn add_registration(&self, tg_id: TelegramId, tt_username: &str) -> Result<()> {
         trace!(tg_id = %tg_id, tt_username, "Adding registration");
         sqlx::query!(
@@ -82,6 +90,7 @@ impl Database {
         Ok(())
     }
 
+    /// `delete_registration` database operation.
     pub async fn delete_registration(&self, tg_id: TelegramId) -> Result<bool> {
         let res = sqlx::query!(
             "DELETE FROM telegram_registrations WHERE telegram_id = ?",
@@ -92,6 +101,7 @@ impl Database {
         Ok(res.rows_affected() > 0)
     }
 
+    /// `get_all_registrations` database operation.
     pub async fn get_all_registrations(&self) -> Result<Vec<TelegramRegistration>> {
         let users = sqlx::query_as!(
             TelegramRegistration,
@@ -102,6 +112,7 @@ impl Database {
         Ok(users)
     }
 
+    /// `get_registration_by_id` database operation.
     pub async fn get_registration_by_id(
         &self,
         tg_id: TelegramId,
@@ -116,6 +127,7 @@ impl Database {
         Ok(user)
     }
 
+    /// `get_registration_by_tt_username` database operation.
     pub async fn get_registration_by_tt_username(
         &self,
         tt_username: &str,
@@ -130,6 +142,7 @@ impl Database {
         Ok(user)
     }
 
+    /// `add_pending_registration` database operation.
     pub async fn add_pending_registration(
         &self,
         key: &str,
@@ -153,6 +166,7 @@ impl Database {
         Ok(())
     }
 
+    /// `get_pending_registration` database operation.
     pub async fn get_pending_registration(
         &self,
         key: &str,
@@ -167,6 +181,7 @@ impl Database {
         Ok(reg)
     }
 
+    /// `delete_pending_registration` database operation.
     pub async fn delete_pending_registration(&self, key: &str) -> Result<()> {
         sqlx::query!(
             "DELETE FROM pending_telegram_registrations WHERE request_key = ?",
@@ -177,6 +192,7 @@ impl Database {
         Ok(())
     }
 
+    /// `get_banned_user` database operation.
     pub async fn get_banned_user(&self, tg_id: TelegramId) -> Result<Option<BannedUser>> {
         let user = sqlx::query_as!(
             BannedUser,
@@ -188,6 +204,7 @@ impl Database {
         Ok(user)
     }
 
+    /// `get_all_banned_users` database operation.
     pub async fn get_all_banned_users(&self) -> Result<Vec<BannedUser>> {
         let users = sqlx::query_as!(
             BannedUser,
@@ -198,6 +215,7 @@ impl Database {
         Ok(users)
     }
 
+    /// `ban_user` database operation.
     pub async fn ban_user(
         &self,
         tg_id: TelegramId,
@@ -207,7 +225,7 @@ impl Database {
     ) -> Result<()> {
         trace!(
             tg_id = %tg_id,
-            admin_id = ?admin_id.map(|id| id.as_i64()),
+            admin_id = ?admin_id.map(TelegramId::as_i64),
             "Banning user"
         );
         let now = Utc::now().naive_utc();
@@ -224,6 +242,7 @@ impl Database {
         Ok(())
     }
 
+    /// `unban_user` database operation.
     pub async fn unban_user(&self, tg_id: TelegramId) -> Result<bool> {
         let res = sqlx::query!("DELETE FROM banned_users WHERE telegram_id = ?", tg_id)
             .execute(&self.pool)
@@ -231,6 +250,7 @@ impl Database {
         Ok(res.rows_affected() > 0)
     }
 
+    /// `is_ip_registered` database operation.
     pub async fn is_ip_registered(&self, ip: &str) -> Result<bool> {
         let count: i64 = sqlx::query_scalar!(
             "SELECT count(*) FROM fastapi_registered_ips WHERE ip_address = ?",
@@ -241,6 +261,7 @@ impl Database {
         Ok(count > 0)
     }
 
+    /// `add_registered_ip` database operation.
     pub async fn add_registered_ip(&self, ip: &str, username: Option<&str>) -> Result<()> {
         let now = Utc::now().naive_utc();
         sqlx::query!(
@@ -254,6 +275,7 @@ impl Database {
         Ok(())
     }
 
+    /// `add_download_token` database operation.
     pub async fn add_download_token(
         &self,
         token: &str,
@@ -278,6 +300,7 @@ impl Database {
         Ok(())
     }
 
+    /// `get_download_token` database operation.
     pub async fn get_download_token(&self, token: &str) -> Result<Option<FastapiDownloadToken>> {
         let now = Utc::now().naive_utc();
         let tok = sqlx::query_as!(
@@ -291,6 +314,7 @@ impl Database {
         Ok(tok)
     }
 
+    /// `mark_token_used` database operation.
     pub async fn mark_token_used(&self, token: &str) -> Result<()> {
         sqlx::query!(
             "UPDATE fastapi_download_tokens SET is_used = 1 WHERE token = ?",
@@ -301,6 +325,7 @@ impl Database {
         Ok(())
     }
 
+    /// `create_deeplink` database operation.
     pub async fn create_deeplink(
         &self,
         token: &str,
@@ -318,6 +343,7 @@ impl Database {
         Ok(())
     }
 
+    /// `get_valid_deeplink` database operation.
     pub async fn get_valid_deeplink(&self, token: &str) -> Result<Option<DeeplinkToken>> {
         let now = Utc::now().naive_utc();
         let token_obj = sqlx::query_as!(
@@ -331,6 +357,7 @@ impl Database {
         Ok(token_obj)
     }
 
+    /// `mark_deeplink_used` database operation.
     pub async fn mark_deeplink_used(&self, token: &str) -> Result<()> {
         sqlx::query!(
             "UPDATE deeplink_tokens SET is_used = 1 WHERE token = ?",
@@ -341,6 +368,7 @@ impl Database {
         Ok(())
     }
 
+    /// `cleanup` database operation.
     pub async fn cleanup(
         &self,
         pending_reg_ttl_seconds: u64,
@@ -363,8 +391,8 @@ impl Database {
         )
         .execute(&self.pool)
         .await?;
-        let pending_ttl = format!("-{} seconds", pending_reg_ttl_seconds);
-        let ip_ttl = format!("-{} seconds", registered_ip_ttl_seconds);
+        let pending_ttl = format!("-{pending_reg_ttl_seconds} seconds");
+        let ip_ttl = format!("-{registered_ip_ttl_seconds} seconds");
         sqlx::query!(
             "DELETE FROM pending_telegram_registrations WHERE created_at < datetime('now', ?)",
             pending_ttl
@@ -383,6 +411,7 @@ impl Database {
         Ok(())
     }
 
+    /// `close` database operation.
     pub async fn close(&self) {
         self.pool.close().await;
     }
