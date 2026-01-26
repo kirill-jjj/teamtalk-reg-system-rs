@@ -16,8 +16,18 @@ db/
 Thumbs.db
 # Databases
 *.db
+*.db-wal
+*.db-shm
+*.db-journal
+*.sqlite
+*.sqlite3
 
 # Local configs
 *.toml
 !Cargo.toml
 !config.toml.example
+
+# Local artifacts
+*.exe
+/TEAMTALK_DLL/
+/temp_files/
