@@ -238,7 +238,10 @@ pub async fn run_tt_worker(
                     }
                 }
                 Err(RecvTimeoutError::Timeout) => {}
-                Err(RecvTimeoutError::Disconnected) => break,
+                Err(RecvTimeoutError::Disconnected) => {
+                    warn!("TT worker command channel disconnected");
+                    break;
+                }
             }
 
             while let Some((event, msg)) = client.poll(0) {
@@ -255,8 +258,12 @@ pub async fn run_tt_worker(
                         for (_, cmd) in pending_cmds.drain() {
                             let _ = cmd.resp.send(Err("Connection lost".to_string()));
                         }
+                        let pending_count = pending_lists.len();
                         for (_, req) in pending_lists.drain() {
                             let _ = req.resp.send(vec![]);
+                        }
+                        if pending_count > 0 {
+                            warn!(pending_count, "Dropped pending list requests on disconnect");
                         }
                     }
                     Event::MySelfLoggedIn => {
