@@ -3252,7 +3252,7 @@ dependencies = [
 
 [[package]]
 name = "teamtalk-reg-system-rs"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "askama 0.15.1",

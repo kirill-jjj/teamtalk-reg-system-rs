@@ -42,15 +42,19 @@ fn handle_command(cmd: TTWorkerCommand, ctx: &mut CommandContext<'_>) {
         match cmd {
             TTWorkerCommand::CreateAccount { resp, .. }
             | TTWorkerCommand::DeleteUser { resp, .. } => {
+                warn!("Rejecting TT command: bot not connected");
                 let _ = resp.send(Err("Bot not connected to TeamTalk".to_string()));
             }
             TTWorkerCommand::CheckUserExists { resp, .. } => {
+                warn!("Rejecting user existence check: bot not connected");
                 let _ = resp.send(false);
             }
             TTWorkerCommand::GetAllUsers { resp } => {
+                warn!("Rejecting user list request: bot not connected");
                 let _ = resp.send(vec![]);
             }
             TTWorkerCommand::GetOnlineUsers { resp } => {
+                warn!("Rejecting online users request: bot not connected");
                 let _ = resp.send(vec![]);
             }
         }
@@ -93,6 +97,7 @@ fn handle_command(cmd: TTWorkerCommand, ctx: &mut CommandContext<'_>) {
 
             let cmd_id = ctx.client.create_user_account(&acc);
             if cmd_id > 0 {
+                debug!(cmd_id, "CreateAccount dispatched");
                 if ctx.broadcast_enabled {
                     let args =
                         HashMap::from([("username".to_string(), username.as_str().to_string())]);
@@ -101,6 +106,7 @@ fn handle_command(cmd: TTWorkerCommand, ctx: &mut CommandContext<'_>) {
                 }
                 ctx.pending_cmds.insert(cmd_id, PendingCommand { resp });
             } else {
+                warn!("CreateAccount dispatch failed (cmd_id=0)");
                 let _ = resp.send(Err("Client error dispatching command".to_string()));
             }
         }
@@ -108,14 +114,18 @@ fn handle_command(cmd: TTWorkerCommand, ctx: &mut CommandContext<'_>) {
             debug!(username = %username.as_str(), "Sending DeleteUser");
             let cmd_id = ctx.client.delete_user_account(username.as_str());
             if cmd_id > 0 {
+                debug!(cmd_id, "DeleteUser dispatched");
                 ctx.pending_cmds.insert(cmd_id, PendingCommand { resp });
             } else {
+                warn!(username = %username.as_str(), "DeleteUser dispatch failed (cmd_id=0)");
                 let _ = resp.send(Err("Failed to dispatch command".to_string()));
             }
         }
         TTWorkerCommand::GetAllUsers { resp } => {
+            debug!("Requesting full user accounts list");
             let cmd_id = ctx.client.list_user_accounts(0, 10000);
             if cmd_id > 0 {
+                debug!(cmd_id, "User accounts list dispatched");
                 ctx.pending_lists.insert(
                     cmd_id,
                     PendingListRequest {
@@ -124,6 +134,7 @@ fn handle_command(cmd: TTWorkerCommand, ctx: &mut CommandContext<'_>) {
                     },
                 );
             } else {
+                warn!("User accounts list dispatch failed (cmd_id=0)");
                 let _ = resp.send(vec![]);
             }
         }
@@ -269,6 +280,7 @@ pub async fn run_tt_worker(
                     }
                     Event::CmdSuccess => {
                         let cmd_id = msg.source();
+                        debug!(cmd_id, "Command succeeded");
                         if let Some(cmd) = pending_cmds.remove(&cmd_id) {
                             let _ = cmd.resp.send(Ok(true));
                         }
@@ -278,6 +290,7 @@ pub async fn run_tt_worker(
                     }
                     Event::CmdError => {
                         let cmd_id = msg.source();
+                        warn!(cmd_id, "Command failed on TeamTalk server");
                         if let Some(cmd) = pending_cmds.remove(&cmd_id) {
                             let _ = cmd.resp.send(Err("Command failed on server".to_string()));
                         }
@@ -290,6 +303,7 @@ pub async fn run_tt_worker(
                         if let Some(req) = pending_lists.get_mut(&cmd_id)
                             && let Some(acc) = msg.account()
                         {
+                            debug!(cmd_id, username = %acc.username, "Received user account");
                             req.accumulated.push(acc.username.clone());
                         }
                     }
