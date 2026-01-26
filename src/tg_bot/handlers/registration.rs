@@ -121,9 +121,13 @@ pub async fn receive_username(
     dialogue: MyDialogue,
     tx_tt: Sender<TTWorkerCommand>,
 ) -> HandlerResult {
-    let lang = match dialogue.get().await.ok().flatten() {
-        Some(State::AwaitingUsername { lang }) => lang,
-        _ => LanguageCode::default(),
+    let lang = match dialogue.get().await {
+        Ok(Some(State::AwaitingUsername { lang })) => lang,
+        Ok(_) => LanguageCode::default(),
+        Err(e) => {
+            warn!(error = %e, "Failed to read dialogue state (AwaitingUsername)");
+            LanguageCode::default()
+        }
     };
 
     let Some(username) = Username::parse(msg.text().unwrap_or("")) else {
@@ -132,10 +136,15 @@ pub async fn receive_username(
         return Ok(());
     };
     let (tx, rx) = tokio::sync::oneshot::channel();
-    tx_tt.send(TTWorkerCommand::CheckUserExists {
+    if let Err(e) = tx_tt.send(TTWorkerCommand::CheckUserExists {
         username: username.clone(),
         resp: tx,
-    })?;
+    }) {
+        error!(error = %e, "Failed to enqueue username check");
+        bot.send_message(msg.chat.id, t(lang.as_str(), "username-check-error"))
+            .await?;
+        return Ok(());
+    }
 
     match rx.await {
         Ok(true) => {
@@ -144,7 +153,8 @@ pub async fn receive_username(
             return Ok(());
         }
         Ok(false) => {}
-        Err(_) => {
+        Err(e) => {
+            warn!(error = %e, "Failed to receive username check response");
             bot.send_message(msg.chat.id, t(lang.as_str(), "username-check-error"))
                 .await?;
             return Ok(());
@@ -160,8 +170,13 @@ pub async fn receive_username(
 }
 
 pub async fn receive_password(bot: Bot, msg: Message, dialogue: MyDialogue) -> HandlerResult {
-    let Some(State::AwaitingPassword { lang, username }) = dialogue.get().await.ok().flatten()
-    else {
+    let Some(State::AwaitingPassword { lang, username }) = (match dialogue.get().await {
+        Ok(state) => state,
+        Err(e) => {
+            warn!(error = %e, "Failed to read dialogue state (AwaitingPassword)");
+            return Ok(());
+        }
+    }) else {
         return Ok(());
     };
 
@@ -204,7 +219,13 @@ pub async fn receive_nickname_choice(
         lang,
         username,
         password,
-    }) = dialogue.get().await.ok().flatten()
+    }) = (match dialogue.get().await {
+        Ok(state) => state,
+        Err(e) => {
+            warn!(error = %e, "Failed to read dialogue state (AwaitingNicknameChoice)");
+            return Ok(());
+        }
+    })
     else {
         return Ok(());
     };
@@ -273,7 +294,13 @@ pub async fn receive_nickname(
         lang,
         username,
         password,
-    }) = dialogue.get().await.ok().flatten()
+    }) = (match dialogue.get().await {
+        Ok(state) => state,
+        Err(e) => {
+            warn!(error = %e, "Failed to read dialogue state (AwaitingNickname)");
+            return Ok(());
+        }
+    })
     else {
         return Ok(());
     };
@@ -325,7 +352,13 @@ pub async fn receive_account_type(
         username,
         password,
         nickname,
-    }) = dialogue.get().await.ok().flatten()
+    }) = (match dialogue.get().await {
+        Ok(state) => state,
+        Err(e) => {
+            warn!(error = %e, "Failed to read dialogue state (AwaitingAccountType)");
+            return Ok(());
+        }
+    })
     else {
         return Ok(());
     };
@@ -408,7 +441,10 @@ async fn handle_registration_end_with_type(
                 u.first_name().unwrap_or("Unknown").to_string(),
                 u.username().unwrap_or("").to_string(),
             ),
-            Err(_) => ("Unknown".to_string(), "".to_string()),
+            Err(e) => {
+                warn!(error = %e, "Failed to fetch Telegram user info");
+                ("Unknown".to_string(), "".to_string())
+            }
         };
         let source_info = format!(
             "lang={};tg_username={};fullname={}",
@@ -474,10 +510,13 @@ async fn handle_registration_end_with_type(
         );
 
         for &admin_id in &config.admin_ids {
-            bot.send_message(ChatId(admin_id.as_i64()), &text)
+            if let Err(e) = bot
+                .send_message(ChatId(admin_id.as_i64()), &text)
                 .reply_markup(keyboard.clone())
                 .await
-                .ok();
+            {
+                warn!(error = %e, admin_id = %admin_id, "Failed to send admin approval message");
+            }
         }
     } else {
         let (tg_fullname, tg_username) = match bot.get_chat(chat_id).await {
@@ -492,7 +531,10 @@ async fn handle_registration_end_with_type(
                 let username = u.username().map(|u| u.to_string()).unwrap_or_default();
                 (fullname, username)
             }
-            Err(_) => ("Unknown".to_string(), String::new()),
+            Err(e) => {
+                warn!(error = %e, "Failed to fetch Telegram user info");
+                ("Unknown".to_string(), String::new())
+            }
         };
         let mut source_info = format!("Telegram ID: {}", chat_id.0);
         if !tg_username.is_empty() {
@@ -524,9 +566,12 @@ async fn handle_registration_end_with_type(
 
         if let Some(err) = result.db_sync_error {
             notify_db_sync_error(&bot, &config, chat_id, username.as_str(), &err).await;
-            bot.send_message(chat_id, t(lang.as_str(), "register-success-db-sync-issue"))
+            if let Err(e) = bot
+                .send_message(chat_id, t(lang.as_str(), "register-success-db-sync-issue"))
                 .await
-                .ok();
+            {
+                warn!(error = %e, "Failed to notify user about db sync issue");
+            }
         }
 
         let args = HashMap::from([("username".to_string(), username.as_str().to_string())]);
@@ -561,23 +606,23 @@ pub(super) async fn send_registration_assets(
     trace!(chat_id = chat_id.0, username, "Sending registration assets");
     let file_tt = InputFile::memory(assets.tt_content.clone().into_bytes())
         .file_name(assets.tt_filename.clone());
-    if bot
+    if let Err(e) = bot
         .send_document(chat_id, file_tt)
         .caption(t(lang, "file-caption"))
         .await
-        .is_err()
     {
+        warn!(error = %e, "Failed to send TT config file");
         bot.send_message(chat_id, t(lang, "file-send-error"))
             .await?;
         return Ok(());
     }
 
     let link_text = t(lang, "link-text");
-    if bot
+    if let Err(e) = bot
         .send_message(chat_id, format!("{}\n{}", link_text, assets.tt_link))
         .await
-        .is_err()
     {
+        warn!(error = %e, "Failed to send TT link");
         bot.send_message(chat_id, t(lang, "file-send-error"))
             .await?;
     }
@@ -628,8 +673,8 @@ pub(super) async fn notify_db_sync_error(
     err: &str,
 ) {
     for &admin_id in &config.admin_ids {
-        if admin_id.as_i64() != chat_id.0 {
-            let _ = bot
+        if admin_id.as_i64() != chat_id.0
+            && let Err(e) = bot
                 .send_message(
                     ChatId(admin_id.as_i64()),
                     format!(
@@ -637,7 +682,9 @@ pub(super) async fn notify_db_sync_error(
                         username, chat_id.0, err
                     ),
                 )
-                .await;
+                .await
+        {
+            warn!(error = %e, admin_id = %admin_id, "Failed to send DB sync error to admin");
         }
     }
 }

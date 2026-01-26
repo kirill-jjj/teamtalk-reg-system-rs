@@ -142,7 +142,8 @@ pub async fn register_post(
         resp: tx,
     };
 
-    if state.tx_tt.send(cmd).is_err() {
+    if let Err(e) = state.tx_tt.send(cmd) {
+        error!(error = %e, ip = %ip, "Failed to enqueue TeamTalk create command");
         let mut tpl = RegisterTemplate::new(
             state.config.server_name.clone(),
             &lang,
@@ -314,6 +315,7 @@ pub async fn register_post(
             tpl
         }
         Ok(Ok(false)) => {
+            warn!("TeamTalk create account returned false");
             let mut tpl = RegisterTemplate::new(
                 state.config.server_name.clone(),
                 &lang,
@@ -329,6 +331,7 @@ pub async fn register_post(
             tpl
         }
         _ => {
+            warn!("TeamTalk create account response failed");
             let mut tpl = RegisterTemplate::new(
                 state.config.server_name.clone(),
                 &lang,
@@ -386,7 +389,8 @@ pub async fn download_handler(
 
             let file = match File::open(&path).await {
                 Ok(f) => f,
-                Err(_) => {
+                Err(e) => {
+                    error!(error = %e, path = %path.display(), "Failed to open file for download");
                     return (
                         axum::http::StatusCode::NOT_FOUND,
                         t("en", "web-err-file-not-found"),
@@ -485,17 +489,32 @@ fn resolve_client_ip(
         return fallback;
     }
 
-    if let Some(value) = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok())
-        && let Some(first) = value.split(',').next().map(|v| v.trim())
-        && let Ok(ip) = first.parse()
-    {
-        return ip;
+    if let Some(raw) = headers.get("x-forwarded-for") {
+        match raw.to_str() {
+            Ok(value) => {
+                if let Some(first) = value.split(',').next().map(|v| v.trim())
+                    && let Ok(ip) = first.parse()
+                {
+                    return ip;
+                }
+            }
+            Err(e) => {
+                warn!(error = %e, "Invalid x-forwarded-for header encoding");
+            }
+        }
     }
 
-    if let Some(value) = headers.get("x-real-ip").and_then(|v| v.to_str().ok())
-        && let Ok(ip) = value.parse()
-    {
-        return ip;
+    if let Some(raw) = headers.get("x-real-ip") {
+        match raw.to_str() {
+            Ok(value) => {
+                if let Ok(ip) = value.parse() {
+                    return ip;
+                }
+            }
+            Err(e) => {
+                warn!(error = %e, "Invalid x-real-ip header encoding");
+            }
+        }
     }
 
     fallback
@@ -510,6 +529,10 @@ async fn download_by_type(
         let stored_type = match DownloadTokenType::try_from(tok_data.token_type.as_str()) {
             Ok(t) => t,
             Err(_) => {
+                warn!(
+                    token_type = %tok_data.token_type,
+                    "Invalid download token type"
+                );
                 return (
                     axum::http::StatusCode::NOT_FOUND,
                     t("en", "web-err-invalid-link"),
@@ -544,7 +567,8 @@ async fn download_by_type(
 
             let file = match File::open(&path).await {
                 Ok(f) => f,
-                Err(_) => {
+                Err(e) => {
+                    error!(error = %e, path = %path.display(), "Failed to open download file");
                     return (
                         axum::http::StatusCode::NOT_FOUND,
                         t("en", "web-err-file-not-found"),

@@ -159,43 +159,73 @@ async fn main() -> anyhow::Result<()> {
         ))
         .branch(
             dptree::filter_async(|d: MyDialogue| async move {
-                matches!(d.get().await.ok().flatten(), Some(State::Start))
+                match d.get().await {
+                    Ok(state) => matches!(state, Some(State::Start)),
+                    Err(e) => {
+                        tracing::warn!(error = %e, "Failed to read dialogue state (Start)");
+                        false
+                    }
+                }
             })
             .endpoint(tg_bot::handlers::start),
         )
         .branch(
             dptree::filter_async(|d: MyDialogue| async move {
-                matches!(
-                    d.get().await.ok().flatten(),
-                    Some(State::AwaitingUsername { .. })
-                )
+                match d.get().await {
+                    Ok(state) => matches!(state, Some(State::AwaitingUsername { .. })),
+                    Err(e) => {
+                        tracing::warn!(
+                            error = %e,
+                            "Failed to read dialogue state (AwaitingUsername)"
+                        );
+                        false
+                    }
+                }
             })
             .endpoint(tg_bot::handlers::receive_username),
         )
         .branch(
             dptree::filter_async(|d: MyDialogue| async move {
-                matches!(
-                    d.get().await.ok().flatten(),
-                    Some(State::AwaitingPassword { .. })
-                )
+                match d.get().await {
+                    Ok(state) => matches!(state, Some(State::AwaitingPassword { .. })),
+                    Err(e) => {
+                        tracing::warn!(
+                            error = %e,
+                            "Failed to read dialogue state (AwaitingPassword)"
+                        );
+                        false
+                    }
+                }
             })
             .endpoint(tg_bot::handlers::receive_password),
         )
         .branch(
             dptree::filter_async(|d: MyDialogue| async move {
-                matches!(
-                    d.get().await.ok().flatten(),
-                    Some(State::AwaitingNickname { .. })
-                )
+                match d.get().await {
+                    Ok(state) => matches!(state, Some(State::AwaitingNickname { .. })),
+                    Err(e) => {
+                        tracing::warn!(
+                            error = %e,
+                            "Failed to read dialogue state (AwaitingNickname)"
+                        );
+                        false
+                    }
+                }
             })
             .endpoint(tg_bot::handlers::receive_nickname),
         )
         .branch(
             dptree::filter_async(|d: MyDialogue| async move {
-                matches!(
-                    d.get().await.ok().flatten(),
-                    Some(State::AwaitingManualBanInput)
-                )
+                match d.get().await {
+                    Ok(state) => matches!(state, Some(State::AwaitingManualBanInput)),
+                    Err(e) => {
+                        tracing::warn!(
+                            error = %e,
+                            "Failed to read dialogue state (AwaitingManualBanInput)"
+                        );
+                        false
+                    }
+                }
             })
             .endpoint(tg_bot::handlers::admin_manual_ban_input),
         );
@@ -204,25 +234,43 @@ async fn main() -> anyhow::Result<()> {
         .enter_dialogue::<CallbackQuery, InMemStorage<State>, State>()
         .branch(
             dptree::filter_async(|d: MyDialogue| async move {
-                matches!(d.get().await.ok().flatten(), Some(State::ChoosingLanguage))
+                match d.get().await {
+                    Ok(state) => matches!(state, Some(State::ChoosingLanguage)),
+                    Err(e) => {
+                        tracing::warn!(error = %e, "Failed to read dialogue state (ChoosingLanguage)");
+                        false
+                    }
+                }
             })
             .endpoint(tg_bot::handlers::receive_language),
         )
         .branch(
             dptree::filter_async(|d: MyDialogue| async move {
-                matches!(
-                    d.get().await.ok().flatten(),
-                    Some(State::AwaitingNicknameChoice { .. })
-                )
+                match d.get().await {
+                    Ok(state) => matches!(state, Some(State::AwaitingNicknameChoice { .. })),
+                    Err(e) => {
+                        tracing::warn!(
+                            error = %e,
+                            "Failed to read dialogue state (AwaitingNicknameChoice)"
+                        );
+                        false
+                    }
+                }
             })
             .endpoint(tg_bot::handlers::receive_nickname_choice),
         )
         .branch(
             dptree::filter_async(|d: MyDialogue| async move {
-                matches!(
-                    d.get().await.ok().flatten(),
-                    Some(State::AwaitingAccountType { .. })
-                )
+                match d.get().await {
+                    Ok(state) => matches!(state, Some(State::AwaitingAccountType { .. })),
+                    Err(e) => {
+                        tracing::warn!(
+                            error = %e,
+                            "Failed to read dialogue state (AwaitingAccountType)"
+                        );
+                        false
+                    }
+                }
             })
             .endpoint(tg_bot::handlers::receive_account_type),
         )

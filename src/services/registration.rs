@@ -6,7 +6,7 @@ use crate::types::{RegistrationSource, TTAccountType, TTWorkerCommand, TelegramI
 use std::error::Error;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::Sender;
-use tracing::instrument;
+use tracing::{error, instrument};
 
 pub struct RegistrationAssets {
     pub tt_content: String,
@@ -79,7 +79,10 @@ pub async fn create_teamtalk_account(
         source_info,
         resp: tx,
     };
-    tx_tt.send(cmd)?;
+    if let Err(e) = tx_tt.send(cmd) {
+        error!(error = %e, "Failed to send TeamTalk create command");
+        return Err(Box::new(e));
+    }
 
     match rx.await {
         Ok(Ok(true)) => {
@@ -102,11 +105,30 @@ pub async fn create_teamtalk_account(
                 assets: Some(assets),
             })
         }
-        _ => Ok(RegistrationResult {
-            created: false,
-            db_sync_error: None,
-            assets: None,
-        }),
+        Ok(Ok(false)) => {
+            error!("TeamTalk create account returned false");
+            Ok(RegistrationResult {
+                created: false,
+                db_sync_error: None,
+                assets: None,
+            })
+        }
+        Ok(Err(e)) => {
+            error!(error = %e, "TeamTalk create account failed");
+            Ok(RegistrationResult {
+                created: false,
+                db_sync_error: None,
+                assets: None,
+            })
+        }
+        Err(e) => {
+            error!(error = %e, "TeamTalk create account response channel failed");
+            Ok(RegistrationResult {
+                created: false,
+                db_sync_error: None,
+                assets: None,
+            })
+        }
     }
 }
 

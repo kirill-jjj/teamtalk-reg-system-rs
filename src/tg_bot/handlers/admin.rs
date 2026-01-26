@@ -12,6 +12,7 @@ use std::sync::Arc;
 use std::sync::mpsc::Sender;
 use teloxide::prelude::*;
 use teloxide::types::ChatId;
+use tracing::warn;
 use uuid::Uuid;
 
 pub async fn admin_panel(
@@ -85,12 +86,15 @@ pub async fn admin_callback(
                     })
                     .await?;
 
-                bot.send_message(
-                    ChatId(req.registrant_telegram_id.as_i64()),
-                    t(req_lang.as_str(), "admin-approved"),
-                )
-                .await
-                .ok();
+                if let Err(e) = bot
+                    .send_message(
+                        ChatId(req.registrant_telegram_id.as_i64()),
+                        t(req_lang.as_str(), "admin-approved"),
+                    )
+                    .await
+                {
+                    warn!(error = %e, "Failed to notify user about approval");
+                }
 
                 let alert_args =
                     HashMap::from([("username".to_string(), username.as_str().to_string())]);
@@ -101,23 +105,28 @@ pub async fn admin_callback(
                         &alert_args,
                     ))
                     .await?;
-                if let Some(m) = &q.message {
-                    let _ = bot.delete_message(m.chat().id, m.id()).await;
+                if let Some(m) = &q.message
+                    && let Err(e) = bot.delete_message(m.chat().id, m.id()).await
+                {
+                    warn!(error = %e, "Failed to delete admin request message");
                 }
                 if !result.created {
-                    bot.send_message(
-                        ChatId(q.from.id.0 as i64),
-                        t_args(
-                            lang.as_str(),
-                            "admin-approve-failed-critical",
-                            &HashMap::from([(
-                                "username".to_string(),
-                                username.as_str().to_string(),
-                            )]),
-                        ),
-                    )
-                    .await
-                    .ok();
+                    if let Err(e) = bot
+                        .send_message(
+                            ChatId(q.from.id.0 as i64),
+                            t_args(
+                                lang.as_str(),
+                                "admin-approve-failed-critical",
+                                &HashMap::from([(
+                                    "username".to_string(),
+                                    username.as_str().to_string(),
+                                )]),
+                            ),
+                        )
+                        .await
+                    {
+                        warn!(error = %e, "Failed to notify admin about approval failure");
+                    }
                     notify_admin_decision(
                         &bot,
                         &config,
@@ -141,15 +150,18 @@ pub async fn admin_callback(
                         &err,
                     )
                     .await;
-                    bot.send_message(
-                        ChatId(req.registrant_telegram_id.as_i64()),
-                        t(req_lang.as_str(), "register-success-db-sync-issue"),
-                    )
-                    .await
-                    .ok();
+                    if let Err(e) = bot
+                        .send_message(
+                            ChatId(req.registrant_telegram_id.as_i64()),
+                            t(req_lang.as_str(), "register-success-db-sync-issue"),
+                        )
+                        .await
+                    {
+                        warn!(error = %e, "Failed to notify user about db sync issue");
+                    }
                 }
-                if let Some(assets) = result.assets {
-                    let _ = send_registration_assets(
+                if let Some(assets) = result.assets
+                    && let Err(e) = send_registration_assets(
                         &bot,
                         ChatId(req.registrant_telegram_id.as_i64()),
                         req_lang.as_str(),
@@ -158,7 +170,9 @@ pub async fn admin_callback(
                         password.as_str(),
                         &assets,
                     )
-                    .await;
+                    .await
+                {
+                    warn!(error = %e, "Failed to send registration assets to user");
                 }
                 notify_admin_decision(
                     &bot,
@@ -203,8 +217,10 @@ pub async fn admin_callback(
                         &alert_args,
                     ))
                     .await?;
-                if let Some(m) = &q.message {
-                    let _ = bot.delete_message(m.chat().id, m.id()).await;
+                if let Some(m) = &q.message
+                    && let Err(e) = bot.delete_message(m.chat().id, m.id()).await
+                {
+                    warn!(error = %e, "Failed to delete admin request message");
                 }
                 notify_admin_decision(
                     &bot,
@@ -372,7 +388,16 @@ pub async fn admin_callback(
         dialogue.update(State::AwaitingManualBanInput).await?;
     } else if data == "admin_tt_list" {
         let (tx, rx) = tokio::sync::oneshot::channel();
-        tx_tt.send(TTWorkerCommand::GetAllUsers { resp: tx })?;
+        if let Err(e) = tx_tt.send(TTWorkerCommand::GetAllUsers { resp: tx }) {
+            warn!(error = %e, "Failed to enqueue TeamTalk users list request");
+            bot.edit_message_text(
+                msg.chat().id,
+                msg.id(),
+                t(lang.as_str(), "admin-tt-list-error"),
+            )
+            .await?;
+            return Ok(());
+        }
         if let Ok(users) = rx.await {
             if users.is_empty() {
                 bot.edit_message_text(
@@ -429,10 +454,21 @@ pub async fn admin_callback(
             return Ok(());
         };
         let (tx, rx) = tokio::sync::oneshot::channel();
-        tx_tt.send(TTWorkerCommand::DeleteUser {
+        if let Err(e) = tx_tt.send(TTWorkerCommand::DeleteUser {
             username: tt_username,
             resp: tx,
-        })?;
+        }) {
+            warn!(error = %e, "Failed to enqueue TeamTalk delete user command");
+            let mut args = HashMap::from([("tt_username".to_string(), username.clone())]);
+            args.insert("error".to_string(), "Dispatcher error".to_string());
+            bot.edit_message_text(
+                msg.chat().id,
+                msg.id(),
+                t_args(lang.as_str(), "admin-tt-delete-fail", &args),
+            )
+            .await?;
+            return Ok(());
+        }
         let args = HashMap::from([("tt_username".to_string(), username.clone())]);
         match rx.await {
             Ok(Ok(true)) => {
@@ -466,7 +502,8 @@ pub async fn admin_callback(
                 )
                 .await?;
             }
-            Err(_) => {
+            Err(e) => {
+                warn!(error = %e, "Failed to receive TT delete response");
                 let mut args = args.clone();
                 args.insert("error".to_string(), "Unknown error".to_string());
                 bot.edit_message_text(
@@ -580,7 +617,8 @@ pub async fn generate_invite(
 
     let bot_info = match bot.get_me().await {
         Ok(info) => info,
-        Err(_) => {
+        Err(e) => {
+            warn!(error = %e, "Failed to fetch bot info");
             bot.send_message(
                 msg.chat.id,
                 t(config.bot_admin_lang.as_str(), "deeplink-generate-error"),
