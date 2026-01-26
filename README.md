@@ -54,6 +54,9 @@ and adjust values:
 - Host/port settings
 - Registration policy toggles
 - TeamTalk and download settings
+- Optional `log_level` (tracing filter), for example:
+  - `log_level = "info"`
+  - `log_level = "info,teamtalk_reg_system_rs=debug,teloxide=debug"`
 
 Environment variables:
 
