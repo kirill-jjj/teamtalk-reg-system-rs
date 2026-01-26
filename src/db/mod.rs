@@ -2,11 +2,12 @@ use crate::types::TelegramId;
 use anyhow::Result;
 use chrono::Utc;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
-use sqlx::{Pool, Sqlite};
+use sqlx::{Pool, Row, Sqlite};
+use std::collections::HashSet;
 use std::path::Path;
 use std::str::FromStr;
 use std::time::Duration;
-use tracing::trace;
+use tracing::{error, info, trace};
 
 /// Database schema row types.
 pub mod schema;
@@ -62,6 +63,8 @@ impl Database {
             .await?;
 
         MIGRATOR.run(&pool).await?;
+        integrity_check(&pool).await?;
+        validate_schema(&pool).await?;
         let db = Self { pool };
         Ok(db)
     }
@@ -415,4 +418,92 @@ impl Database {
     pub async fn close(&self) {
         self.pool.close().await;
     }
+}
+
+async fn integrity_check(pool: &Pool<Sqlite>) -> Result<()> {
+    let result: String = sqlx::query_scalar("PRAGMA integrity_check;")
+        .fetch_one(pool)
+        .await?;
+    if result.trim() == "ok" {
+        info!("Database integrity check: ok");
+        Ok(())
+    } else {
+        error!(result = %result, "Database integrity check failed");
+        anyhow::bail!("Database integrity check failed: {result}");
+    }
+}
+
+async fn validate_schema(pool: &Pool<Sqlite>) -> Result<()> {
+    let tables: Vec<String> = sqlx::query("SELECT name FROM sqlite_master WHERE type = 'table'")
+        .map(|row: sqlx::sqlite::SqliteRow| row.get::<String, _>("name"))
+        .fetch_all(pool)
+        .await?;
+    let present: HashSet<String> = tables.into_iter().collect();
+    let required_tables = [
+        "telegram_registrations",
+        "pending_telegram_registrations",
+        "pending_web_registrations",
+        "banned_users",
+        "fastapi_download_tokens",
+        "fastapi_registered_ips",
+        "deeplink_tokens",
+        "_sqlx_migrations",
+    ];
+    for table in &required_tables {
+        if !present.contains(*table) {
+            anyhow::bail!("Database schema missing table: {table}");
+        }
+    }
+
+    ensure_columns(
+        pool,
+        "pending_telegram_registrations",
+        &[
+            "id",
+            "request_key",
+            "registrant_telegram_id",
+            "username",
+            "password_cleartext",
+            "nickname",
+            "source_info",
+            "created_at",
+        ],
+    )
+    .await?;
+
+    ensure_columns(
+        pool,
+        "pending_web_registrations",
+        &[
+            "id",
+            "request_key",
+            "username",
+            "password_cleartext",
+            "nickname",
+            "ip_address",
+            "user_agent",
+            "source_info",
+            "created_at",
+        ],
+    )
+    .await?;
+
+    Ok(())
+}
+
+async fn ensure_columns(pool: &Pool<Sqlite>, table: &str, expected: &[&str]) -> Result<()> {
+    let rows = sqlx::query(&format!("PRAGMA table_info({table})"))
+        .fetch_all(pool)
+        .await?;
+    let mut present = HashSet::new();
+    for row in rows {
+        let name: String = row.get("name");
+        present.insert(name);
+    }
+    for col in expected {
+        if !present.contains(*col) {
+            anyhow::bail!("Table {table} missing column: {col}");
+        }
+    }
+    Ok(())
 }

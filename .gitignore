@@ -2,6 +2,7 @@
 **/*.rs.bk
 .sqlx/prepare.db
 db/
+!src/db/
 
 # Local env/config
 .env
