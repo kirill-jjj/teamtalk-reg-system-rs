@@ -567,13 +567,8 @@ fn handle_user_account(
     }
 
     if pending_lists.len() == 1 {
-        let (pending_id, req) = pending_lists.iter_mut().next().unwrap();
+        let (_pending_id, req) = pending_lists.iter_mut().next().unwrap();
         if !req.mismatch_logged {
-            warn!(
-                cmd_id,
-                pending_cmd_id = *pending_id,
-                "User account event not matched; using the only pending list"
-            );
             req.mismatch_logged = true;
         }
         req.accumulated.push(acc.username);
