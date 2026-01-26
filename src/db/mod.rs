@@ -7,7 +7,7 @@ use std::collections::HashSet;
 use std::path::Path;
 use std::str::FromStr;
 use std::time::Duration;
-use tracing::{error, info, trace};
+use tracing::{error, info, instrument, trace};
 
 /// Database schema row types.
 pub mod schema;
@@ -70,6 +70,7 @@ impl Database {
     }
 
     /// `is_telegram_registered` database operation.
+    #[instrument(skip(self), err)]
     pub async fn is_telegram_registered(&self, tg_id: TelegramId) -> Result<bool> {
         let count: i64 = sqlx::query_scalar!(
             "SELECT count(*) FROM telegram_registrations WHERE telegram_id = ?",
@@ -81,6 +82,7 @@ impl Database {
     }
 
     /// `add_registration` database operation.
+    #[instrument(skip(self), err)]
     pub async fn add_registration(&self, tg_id: TelegramId, tt_username: &str) -> Result<()> {
         trace!(tg_id = %tg_id, tt_username, "Adding registration");
         sqlx::query!(
@@ -94,6 +96,7 @@ impl Database {
     }
 
     /// `delete_registration` database operation.
+    #[instrument(skip(self), err)]
     pub async fn delete_registration(&self, tg_id: TelegramId) -> Result<bool> {
         let res = sqlx::query!(
             "DELETE FROM telegram_registrations WHERE telegram_id = ?",
@@ -105,6 +108,7 @@ impl Database {
     }
 
     /// `get_all_registrations` database operation.
+    #[instrument(skip(self), err)]
     pub async fn get_all_registrations(&self) -> Result<Vec<TelegramRegistration>> {
         let users = sqlx::query_as!(
             TelegramRegistration,
@@ -116,6 +120,7 @@ impl Database {
     }
 
     /// `get_registration_by_id` database operation.
+    #[instrument(skip(self), err)]
     pub async fn get_registration_by_id(
         &self,
         tg_id: TelegramId,
@@ -131,6 +136,7 @@ impl Database {
     }
 
     /// `get_registration_by_tt_username` database operation.
+    #[instrument(skip(self), err)]
     pub async fn get_registration_by_tt_username(
         &self,
         tt_username: &str,
@@ -146,6 +152,7 @@ impl Database {
     }
 
     /// `add_pending_registration` database operation.
+    #[instrument(skip(self), err)]
     pub async fn add_pending_registration(
         &self,
         key: &str,
@@ -170,6 +177,7 @@ impl Database {
     }
 
     /// `get_pending_registration` database operation.
+    #[instrument(skip(self), err)]
     pub async fn get_pending_registration(
         &self,
         key: &str,
@@ -185,6 +193,7 @@ impl Database {
     }
 
     /// `delete_pending_registration` database operation.
+    #[instrument(skip(self), err)]
     pub async fn delete_pending_registration(&self, key: &str) -> Result<()> {
         sqlx::query!(
             "DELETE FROM pending_telegram_registrations WHERE request_key = ?",
@@ -196,6 +205,7 @@ impl Database {
     }
 
     /// `get_banned_user` database operation.
+    #[instrument(skip(self), err)]
     pub async fn get_banned_user(&self, tg_id: TelegramId) -> Result<Option<BannedUser>> {
         let user = sqlx::query_as!(
             BannedUser,
@@ -208,6 +218,7 @@ impl Database {
     }
 
     /// `get_all_banned_users` database operation.
+    #[instrument(skip(self), err)]
     pub async fn get_all_banned_users(&self) -> Result<Vec<BannedUser>> {
         let users = sqlx::query_as!(
             BannedUser,
@@ -219,6 +230,7 @@ impl Database {
     }
 
     /// `ban_user` database operation.
+    #[instrument(skip(self), err)]
     pub async fn ban_user(
         &self,
         tg_id: TelegramId,
@@ -246,6 +258,7 @@ impl Database {
     }
 
     /// `unban_user` database operation.
+    #[instrument(skip(self), err)]
     pub async fn unban_user(&self, tg_id: TelegramId) -> Result<bool> {
         let res = sqlx::query!("DELETE FROM banned_users WHERE telegram_id = ?", tg_id)
             .execute(&self.pool)
@@ -254,6 +267,7 @@ impl Database {
     }
 
     /// `is_ip_registered` database operation.
+    #[instrument(skip(self), err)]
     pub async fn is_ip_registered(&self, ip: &str) -> Result<bool> {
         let count: i64 = sqlx::query_scalar!(
             "SELECT count(*) FROM fastapi_registered_ips WHERE ip_address = ?",
@@ -265,6 +279,7 @@ impl Database {
     }
 
     /// `add_registered_ip` database operation.
+    #[instrument(skip(self), err)]
     pub async fn add_registered_ip(&self, ip: &str, username: Option<&str>) -> Result<()> {
         let now = Utc::now().naive_utc();
         sqlx::query!(
@@ -279,6 +294,7 @@ impl Database {
     }
 
     /// `add_download_token` database operation.
+    #[instrument(skip(self), err)]
     pub async fn add_download_token(
         &self,
         token: &str,
@@ -304,6 +320,7 @@ impl Database {
     }
 
     /// `get_download_token` database operation.
+    #[instrument(skip(self), err)]
     pub async fn get_download_token(&self, token: &str) -> Result<Option<FastapiDownloadToken>> {
         let now = Utc::now().naive_utc();
         let tok = sqlx::query_as!(
@@ -318,6 +335,7 @@ impl Database {
     }
 
     /// `mark_token_used` database operation.
+    #[instrument(skip(self), err)]
     pub async fn mark_token_used(&self, token: &str) -> Result<()> {
         sqlx::query!(
             "UPDATE fastapi_download_tokens SET is_used = 1 WHERE token = ?",
@@ -329,6 +347,7 @@ impl Database {
     }
 
     /// `create_deeplink` database operation.
+    #[instrument(skip(self), err)]
     pub async fn create_deeplink(
         &self,
         token: &str,
@@ -347,6 +366,7 @@ impl Database {
     }
 
     /// `get_valid_deeplink` database operation.
+    #[instrument(skip(self), err)]
     pub async fn get_valid_deeplink(&self, token: &str) -> Result<Option<DeeplinkToken>> {
         let now = Utc::now().naive_utc();
         let token_obj = sqlx::query_as!(
@@ -361,6 +381,7 @@ impl Database {
     }
 
     /// `mark_deeplink_used` database operation.
+    #[instrument(skip(self), err)]
     pub async fn mark_deeplink_used(&self, token: &str) -> Result<()> {
         sqlx::query!(
             "UPDATE deeplink_tokens SET is_used = 1 WHERE token = ?",
@@ -372,6 +393,7 @@ impl Database {
     }
 
     /// `cleanup` database operation.
+    #[instrument(skip(self), err)]
     pub async fn cleanup(
         &self,
         pending_reg_ttl_seconds: u64,
