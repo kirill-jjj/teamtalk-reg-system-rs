@@ -39,6 +39,7 @@ struct PendingListRequest {
     kind: PendingListKind,
     accumulated: Vec<String>,
     completed_at: Option<Instant>,
+    mismatch_logged: bool,
 }
 
 struct CommandContext<'a> {
@@ -245,6 +246,7 @@ fn handle_get_all_users(ctx: &mut CommandContext<'_>, resp: oneshot::Sender<Vec<
                 kind: PendingListKind::AllUsers { resp },
                 accumulated: Vec::new(),
                 completed_at: None,
+                mismatch_logged: false,
             },
         );
     } else {
@@ -268,6 +270,7 @@ fn handle_check_user_exists(
                 kind: PendingListKind::Exists { username, resp },
                 accumulated: Vec::new(),
                 completed_at: None,
+                mismatch_logged: false,
             },
         );
     } else {
@@ -565,11 +568,14 @@ fn handle_user_account(
 
     if pending_lists.len() == 1 {
         let (pending_id, req) = pending_lists.iter_mut().next().unwrap();
-        warn!(
-            cmd_id,
-            pending_cmd_id = *pending_id,
-            "User account event not matched; using the only pending list"
-        );
+        if !req.mismatch_logged {
+            warn!(
+                cmd_id,
+                pending_cmd_id = *pending_id,
+                "User account event not matched; using the only pending list"
+            );
+            req.mismatch_logged = true;
+        }
         req.accumulated.push(acc.username);
         if req.completed_at.is_some() {
             req.completed_at = Some(Instant::now());
