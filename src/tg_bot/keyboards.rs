@@ -62,13 +62,19 @@ pub fn admin_panel_keyboard(
 }
 
 /// Keyboard for selecting a registered user.
-pub fn admin_user_list_keyboard(users: Vec<(TelegramId, String)>) -> InlineKeyboardMarkup {
+pub fn admin_user_list_keyboard(
+    users: Vec<(TelegramId, String)>,
+    nav_row: Option<Vec<InlineKeyboardButton>>,
+) -> InlineKeyboardMarkup {
     let mut buttons = vec![];
     for (tg_id, tt_user) in users {
         buttons.push(vec![InlineKeyboardButton::callback(
             format!("TG ID: {tg_id} - TT User: {tt_user}"),
             format!("admin_del_confirm_{}", tg_id.as_i64()),
         )]);
+    }
+    if let Some(row) = nav_row {
+        buttons.push(row);
     }
     InlineKeyboardMarkup::new(buttons)
 }
@@ -78,6 +84,7 @@ pub fn admin_banlist_keyboard(
     banned_users: Vec<(TelegramId, String)>,
     unban_text: &str,
     manual_text: &str,
+    nav_row: Option<Vec<InlineKeyboardButton>>,
 ) -> InlineKeyboardMarkup {
     let mut buttons = vec![];
     for (tg_id, _reason) in banned_users {
@@ -90,6 +97,9 @@ pub fn admin_banlist_keyboard(
         manual_text,
         "admin_ban_manual",
     )]);
+    if let Some(row) = nav_row {
+        buttons.push(row);
+    }
     InlineKeyboardMarkup::new(buttons)
 }
 
@@ -97,6 +107,7 @@ pub fn admin_banlist_keyboard(
 pub fn admin_tt_accounts_keyboard(
     accounts: Vec<String>,
     delete_text: &str,
+    nav_row: Option<Vec<InlineKeyboardButton>>,
 ) -> InlineKeyboardMarkup {
     let mut buttons = vec![];
     for acc in accounts {
@@ -105,7 +116,26 @@ pub fn admin_tt_accounts_keyboard(
             format!("admin_tt_del_prompt_{acc}"),
         )]);
     }
+    if let Some(row) = nav_row {
+        buttons.push(row);
+    }
     InlineKeyboardMarkup::new(buttons)
+}
+
+pub fn pagination_row(
+    prev_text: &str,
+    next_text: &str,
+    prev_cb: Option<String>,
+    next_cb: Option<String>,
+) -> Option<Vec<InlineKeyboardButton>> {
+    let mut row = Vec::new();
+    if let Some(cb) = prev_cb {
+        row.push(InlineKeyboardButton::callback(prev_text.to_string(), cb));
+    }
+    if let Some(cb) = next_cb {
+        row.push(InlineKeyboardButton::callback(next_text.to_string(), cb));
+    }
+    if row.is_empty() { None } else { Some(row) }
 }
 
 /// Keyboard for confirmation actions.

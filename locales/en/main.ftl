@@ -42,6 +42,8 @@ btn-add-ban-manual = Add to Ban List Manually
 btn-confirm-delete = Confirm Delete
 btn-cancel = Cancel
 btn-delete-from-tt = Delete from TeamTalk
+btn-prev-page = ◀ Prev
+btn-next-page = Next ▶
 
 tt-account-admin = TeamTalk Admin
 tt-account-user = TeamTalk User
@@ -73,6 +75,7 @@ admin-ban-fail = Failed to manually ban user { $tg_id }.
 admin-tt-list-error = Could not connect to the TeamTalk server to get the list of accounts.
 admin-tt-no-accounts = No TeamTalk accounts found on the server.
 admin-tt-list-title = TeamTalk Accounts:
+admin-list-page = Page { $page } of { $pages }
 admin-tt-delete-prompt = Are you sure you want to delete the TeamTalk user '{ $tt_username }'?
 admin-tt-deleted = TeamTalk user '{ $tt_username }' was successfully deleted.
 admin-tt-delete-fail = Failed to delete TeamTalk user '{ $tt_username }'. Reason: { $error }

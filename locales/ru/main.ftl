@@ -42,6 +42,8 @@ btn-add-ban-manual = Добавить в бан вручную
 btn-confirm-delete = Подтвердить удаление
 btn-cancel = Отмена
 btn-delete-from-tt = Удалить из TeamTalk
+btn-prev-page = ◀ Назад
+btn-next-page = Вперёд ▶
 
 tt-account-admin = Администратор TeamTalk
 tt-account-user = Пользователь TeamTalk
@@ -73,6 +75,7 @@ admin-ban-fail = Не удалось забанить пользователя {
 admin-tt-list-error = Не удалось подключиться к серверу TeamTalk для получения списка учетных записей.
 admin-tt-no-accounts = На сервере не найдено учетных записей TeamTalk.
 admin-tt-list-title = Пользователь TeamTalk
+admin-list-page = Страница { $page } из { $pages }
 admin-tt-delete-prompt = Вы уверены, что хотите удалить пользователя TeamTalk '{ $tt_username }'?
 admin-tt-deleted = TeamTalk пользователь '{ $tt_username }' был успешно удален.
 admin-tt-delete-fail = Не удалось удалить пользователя TeamTalk '{ $tt_username }'. Причина: { $error }
