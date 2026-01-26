@@ -108,6 +108,8 @@ pub async fn receive_language(bot: Bot, q: CallbackQuery, dialogue: MyDialogue) 
         if let Some(msg) = q.message {
             bot.send_message(msg.chat().id, t(lang.as_str(), "username-prompt"))
                 .await?;
+        } else {
+            warn!("Language callback missing message");
         }
 
         dialogue.update(State::AwaitingUsername { lang }).await?;
@@ -231,6 +233,10 @@ pub async fn receive_nickname_choice(
     };
 
     let data = q.data.clone().unwrap_or_default();
+    if data.is_empty() {
+        warn!("Registration callback query missing data");
+        return Ok(());
+    }
     bot.answer_callback_query(q.id).await?;
 
     if data == "nick_custom" {
@@ -270,6 +276,8 @@ pub async fn receive_nickname_choice(
                 config,
             )
             .await?;
+        } else {
+            warn!("Nickname choice callback missing message");
         }
         dialogue.exit().await?;
     } else {
@@ -364,6 +372,10 @@ pub async fn receive_account_type(
     };
 
     let data = q.data.clone().unwrap_or_default();
+    if data.is_empty() {
+        warn!("Registration callback query missing data");
+        return Ok(());
+    }
     bot.answer_callback_query(q.id).await?;
 
     let account_type = if data == "acct_admin" {
@@ -386,6 +398,8 @@ pub async fn receive_account_type(
             config,
         )
         .await?;
+    } else {
+        warn!("Account type callback missing message");
     }
     dialogue.exit().await?;
     Ok(())

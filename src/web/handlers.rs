@@ -358,8 +358,13 @@ pub async fn set_language_and_reload(
         .map(|v| LanguageCode::parse_or_default(v))
         .unwrap_or_default();
     let mut headers = HeaderMap::new();
-    if let Ok(value) = HeaderValue::from_str(&format!("user_web_lang={}; Path=/", lang.as_str())) {
-        headers.insert(axum::http::header::SET_COOKIE, value);
+    match HeaderValue::from_str(&format!("user_web_lang={}; Path=/", lang.as_str())) {
+        Ok(value) => {
+            headers.insert(axum::http::header::SET_COOKIE, value);
+        }
+        Err(e) => {
+            warn!(error = %e, "Failed to build user_web_lang cookie header");
+        }
     }
     (headers, Redirect::to("/register"))
 }

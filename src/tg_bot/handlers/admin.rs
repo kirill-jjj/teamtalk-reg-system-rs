@@ -45,6 +45,10 @@ pub async fn admin_callback(
     tx_tt: Sender<TTWorkerCommand>,
 ) -> HandlerResult {
     let data = q.data.clone().unwrap_or_default();
+    if data.is_empty() {
+        warn!("Admin callback query missing data");
+        return Ok(());
+    }
     let chat_id = q.from.id.0 as i64;
     let lang = config.bot_admin_lang.clone();
 
@@ -257,7 +261,10 @@ pub async fn admin_callback(
 
     let msg = match q.message {
         Some(m) => m,
-        None => return Ok(()),
+        None => {
+            warn!("Admin callback query missing message");
+            return Ok(());
+        }
     };
 
     if data == "admin_del" {
@@ -398,35 +405,39 @@ pub async fn admin_callback(
             .await?;
             return Ok(());
         }
-        if let Ok(users) = rx.await {
-            if users.is_empty() {
+        match rx.await {
+            Ok(users) => {
+                if users.is_empty() {
+                    bot.edit_message_text(
+                        msg.chat().id,
+                        msg.id(),
+                        t(lang.as_str(), "admin-tt-no-accounts"),
+                    )
+                    .await?;
+                } else {
+                    let mut lines = Vec::new();
+                    lines.push(t(lang.as_str(), "admin-tt-list-title"));
+                    for u in &users {
+                        lines.push(format!("- {}", u));
+                    }
+                    let text = lines.join("\n");
+                    bot.edit_message_text(msg.chat().id, msg.id(), text)
+                        .reply_markup(crate::tg_bot::keyboards::admin_tt_accounts_keyboard(
+                            users,
+                            &t(lang.as_str(), "btn-delete-from-tt"),
+                        ))
+                        .await?;
+                }
+            }
+            Err(e) => {
+                warn!(error = %e, "Failed to receive TeamTalk users list");
                 bot.edit_message_text(
                     msg.chat().id,
                     msg.id(),
-                    t(lang.as_str(), "admin-tt-no-accounts"),
+                    t(lang.as_str(), "admin-tt-list-error"),
                 )
                 .await?;
-            } else {
-                let mut lines = Vec::new();
-                lines.push(t(lang.as_str(), "admin-tt-list-title"));
-                for u in &users {
-                    lines.push(format!("- {}", u));
-                }
-                let text = lines.join("\n");
-                bot.edit_message_text(msg.chat().id, msg.id(), text)
-                    .reply_markup(crate::tg_bot::keyboards::admin_tt_accounts_keyboard(
-                        users,
-                        &t(lang.as_str(), "btn-delete-from-tt"),
-                    ))
-                    .await?;
             }
-        } else {
-            bot.edit_message_text(
-                msg.chat().id,
-                msg.id(),
-                t(lang.as_str(), "admin-tt-list-error"),
-            )
-            .await?;
         }
     } else if data.starts_with("admin_tt_del_prompt_") {
         let username = data.replace("admin_tt_del_prompt_", "");
