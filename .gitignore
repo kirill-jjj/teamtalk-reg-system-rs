@@ -14,3 +14,9 @@ db/
 # OS files
 .DS_Store
 Thumbs.db
+# Databases
+*.db
+
+# Local configs
+*.toml
+!Cargo.toml
