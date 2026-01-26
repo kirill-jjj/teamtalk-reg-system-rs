@@ -20,3 +20,4 @@ Thumbs.db
 # Local configs
 *.toml
 !Cargo.toml
+!config.toml.example
