@@ -9,7 +9,7 @@ CREATE TABLE pending_telegram_registrations_new (
     password_cleartext TEXT NOT NULL,
     nickname TEXT NOT NULL,
     source_info TEXT NOT NULL,
-    created_at DATETIME NOT NULL
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 INSERT INTO pending_telegram_registrations_new (
@@ -57,7 +57,7 @@ CREATE TABLE pending_web_registrations_new (
     ip_address TEXT NOT NULL,
     user_agent TEXT,
     source_info TEXT NOT NULL,
-    created_at DATETIME NOT NULL
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 INSERT INTO pending_web_registrations_new (
