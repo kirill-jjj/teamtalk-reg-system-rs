@@ -40,7 +40,7 @@ unic-langid = "0.9.6"
 mime_guess = "2.0.5"
 walkdir = "2.5.0"
 zip = { version = "7.2.0", default-features = false, features = ["deflate"] }
-clap = { version = "4.5.54", features = ["derive"] }
+clap = { version = "4.5.55", features = ["derive"] }
 
 [target.'cfg(windows)'.dependencies]
 tracing-subscriber = { version = "0.3.19", default-features = false, features = ["env-filter", "fmt"] }
