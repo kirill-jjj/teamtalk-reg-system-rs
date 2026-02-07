@@ -1,5 +1,6 @@
 mod commands;
 mod events;
+mod lifecycle;
 mod pending_lists;
 pub mod worker;
 

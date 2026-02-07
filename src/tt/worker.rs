@@ -2,19 +2,19 @@ use crate::config::AppConfig;
 use crate::db::Database;
 use crate::tt::commands::{self, CommandContext, PendingCommand};
 use crate::tt::events;
+use crate::tt::lifecycle::{self, LoginConfig, StatusConfig};
 use crate::tt::pending_lists::{self, PendingListRequest};
 use crate::types::{LanguageCode, TTWorkerCommand, TelegramId};
 use std::collections::HashMap;
 use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex};
 use teamtalk::client::{ConnectParams, ReconnectConfig, ReconnectHandler};
-use teamtalk::types::{UserGender, UserPresence, UserStatus};
 use teamtalk::{Client, Event};
 use teloxide::prelude::*;
 use tokio::runtime::Handle;
 use tokio::task::AbortHandle;
 use tracing::instrument;
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
 struct TTWorkerConfig {
     host: String,
@@ -159,50 +159,18 @@ fn run_tt_loop(runtime: TTWorkerRuntime) {
             break;
         }
 
-        while let Some((event, msg)) = client.poll(0) {
-            match event {
-                Event::ConnectSuccess => handle_connect_success(&client, &mut reconnect, &config),
-                Event::ConnectFailed | Event::ConnectionLost => {
-                    handle_connection_lost(
-                        &mut reconnect,
-                        &mut is_logged_in,
-                        &mut pending_cmds,
-                        &mut pending_lists,
-                    );
-                }
-                Event::MySelfLoggedIn => {
-                    handle_logged_in(&client, &mut is_logged_in, &config);
-                }
-                Event::CmdSuccess => {
-                    events::handle_cmd_success(&msg, &mut pending_cmds, &mut pending_lists);
-                }
-                Event::CmdError => {
-                    events::handle_cmd_error(&msg, &mut pending_cmds, &mut pending_lists);
-                }
-                Event::UserAccount => {
-                    pending_lists::handle_user_account_event(&msg, &mut pending_lists);
-                }
-                Event::UserAccountCreated => events::handle_user_account_created(
-                    &msg,
-                    is_logged_in,
-                    &bot,
-                    &config.admin_ids,
-                    &config.admin_lang,
-                    &pending_deletions,
-                    &rt_handle,
-                ),
-                Event::UserAccountRemoved => events::handle_user_account_removed(
-                    &msg,
-                    &bot,
-                    &db,
-                    &config.admin_ids,
-                    &config.admin_lang,
-                    &pending_deletions,
-                    &rt_handle,
-                ),
-                _ => {}
-            }
-        }
+        let mut event_ctx = EventLoopCtx {
+            reconnect: &mut reconnect,
+            config: &config,
+            bot: &bot,
+            db: &db,
+            pending_deletions: &pending_deletions,
+            rt_handle: &rt_handle,
+            is_logged_in: &mut is_logged_in,
+            pending_cmds: &mut pending_cmds,
+            pending_lists: &mut pending_lists,
+        };
+        process_tt_events(&client, &mut event_ctx);
 
         pending_lists::flush_completed(&mut pending_lists);
 
@@ -212,59 +180,77 @@ fn run_tt_loop(runtime: TTWorkerRuntime) {
     }
 }
 
-fn handle_connect_success(
-    client: &Client,
-    reconnect: &mut ReconnectHandler,
-    config: &TTWorkerConfig,
-) {
-    info!("Connected. Logging in");
-    reconnect.mark_connected();
-    client.login(
-        &config.nickname,
-        &config.username,
-        &config.password,
-        &config.client_name,
-    );
+struct EventLoopCtx<'a> {
+    reconnect: &'a mut ReconnectHandler,
+    config: &'a TTWorkerConfig,
+    bot: &'a Bot,
+    db: &'a Database,
+    pending_deletions: &'a Arc<Mutex<HashMap<String, AbortHandle>>>,
+    rt_handle: &'a Handle,
+    is_logged_in: &'a mut bool,
+    pending_cmds: &'a mut HashMap<i32, PendingCommand>,
+    pending_lists: &'a mut HashMap<i32, PendingListRequest>,
 }
 
-fn handle_connection_lost(
-    reconnect: &mut ReconnectHandler,
-    is_logged_in: &mut bool,
-    pending_cmds: &mut HashMap<i32, PendingCommand>,
-    pending_lists: &mut HashMap<i32, PendingListRequest>,
-) {
-    warn!("Connection lost");
-    *is_logged_in = false;
-    reconnect.mark_disconnected();
-    for (_, cmd) in pending_cmds.drain() {
-        let _ = cmd.resp.send(Err("Connection lost".to_string()));
+fn process_tt_events(client: &Client, ctx: &mut EventLoopCtx<'_>) {
+    while let Some((event, msg)) = client.poll(0) {
+        match event {
+            Event::ConnectSuccess => lifecycle::handle_connect_success(
+                client,
+                ctx.reconnect,
+                &LoginConfig {
+                    nickname: &ctx.config.nickname,
+                    username: &ctx.config.username,
+                    password: &ctx.config.password,
+                    client_name: &ctx.config.client_name,
+                },
+            ),
+            Event::ConnectFailed | Event::ConnectionLost => {
+                lifecycle::handle_connection_lost(
+                    ctx.reconnect,
+                    ctx.is_logged_in,
+                    ctx.pending_cmds,
+                    ctx.pending_lists,
+                );
+            }
+            Event::MySelfLoggedIn => {
+                lifecycle::handle_logged_in(
+                    client,
+                    ctx.is_logged_in,
+                    &StatusConfig {
+                        gender: &ctx.config.tt_gender_str,
+                        status_text: &ctx.config.tt_status_text,
+                    },
+                );
+            }
+            Event::CmdSuccess => {
+                events::handle_cmd_success(&msg, ctx.pending_cmds, ctx.pending_lists);
+            }
+            Event::CmdError => {
+                events::handle_cmd_error(&msg, ctx.pending_cmds, ctx.pending_lists);
+            }
+            Event::UserAccount => {
+                pending_lists::handle_user_account_event(&msg, ctx.pending_lists);
+            }
+            Event::UserAccountCreated => events::handle_user_account_created(
+                &msg,
+                *ctx.is_logged_in,
+                ctx.bot,
+                &ctx.config.admin_ids,
+                &ctx.config.admin_lang,
+                ctx.pending_deletions,
+                ctx.rt_handle,
+            ),
+            Event::UserAccountRemoved => events::handle_user_account_removed(
+                &msg,
+                ctx.bot,
+                ctx.db,
+                &ctx.config.admin_ids,
+                &ctx.config.admin_lang,
+                ctx.pending_deletions,
+                ctx.rt_handle,
+            ),
+            _ => {}
+        }
     }
-    let pending_count = pending_lists.len();
-    let pending_ids: Vec<i32> = pending_lists.keys().copied().collect();
-    for cmd_id in pending_ids {
-        pending_lists::fail_command(cmd_id, pending_lists);
-    }
-    if pending_count > 0 {
-        warn!(pending_count, "Dropped pending list requests on disconnect");
-    }
-}
-
-fn handle_logged_in(client: &Client, is_logged_in: &mut bool, config: &TTWorkerConfig) {
-    info!("Logged in as bot");
-    *is_logged_in = true;
-
-    let gender = match config.tt_gender_str.to_lowercase().as_str() {
-        "male" => UserGender::Male,
-        "female" => UserGender::Female,
-        _ => UserGender::Neutral,
-    };
-
-    let status_mode = UserStatus {
-        gender,
-        presence: UserPresence::Available,
-        ..Default::default()
-    };
-
-    client.set_status(status_mode, &config.tt_status_text);
-    client.subscribe(client.my_id(), teamtalk::types::Subscriptions::all());
 }
