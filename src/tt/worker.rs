@@ -1,22 +1,20 @@
 use crate::config::AppConfig;
 use crate::db::Database;
-use crate::i18n::t_args;
 use crate::tt::commands::{self, CommandContext, PendingCommand};
+use crate::tt::events;
 use crate::tt::pending_lists::{self, PendingListRequest};
 use crate::types::{LanguageCode, TTWorkerCommand, TelegramId};
 use std::collections::HashMap;
 use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
 use teamtalk::client::{ConnectParams, ReconnectConfig, ReconnectHandler};
-use teamtalk::types::{ErrorMessage, UserGender, UserPresence, UserStatus};
+use teamtalk::types::{UserGender, UserPresence, UserStatus};
 use teamtalk::{Client, Event};
 use teloxide::prelude::*;
-use teloxide::types::ChatId;
 use tokio::runtime::Handle;
 use tokio::task::AbortHandle;
 use tracing::instrument;
-use tracing::{debug, error, info, warn};
+use tracing::{error, info, warn};
 
 struct TTWorkerConfig {
     host: String,
@@ -176,25 +174,29 @@ fn run_tt_loop(runtime: TTWorkerRuntime) {
                     handle_logged_in(&client, &mut is_logged_in, &config);
                 }
                 Event::CmdSuccess => {
-                    handle_cmd_success(&msg, &mut pending_cmds, &mut pending_lists);
+                    events::handle_cmd_success(&msg, &mut pending_cmds, &mut pending_lists);
                 }
-                Event::CmdError => handle_cmd_error(&msg, &mut pending_cmds, &mut pending_lists),
+                Event::CmdError => {
+                    events::handle_cmd_error(&msg, &mut pending_cmds, &mut pending_lists);
+                }
                 Event::UserAccount => {
                     pending_lists::handle_user_account_event(&msg, &mut pending_lists);
                 }
-                Event::UserAccountCreated => handle_user_account_created(
+                Event::UserAccountCreated => events::handle_user_account_created(
                     &msg,
                     is_logged_in,
                     &bot,
-                    &config,
+                    &config.admin_ids,
+                    &config.admin_lang,
                     &pending_deletions,
                     &rt_handle,
                 ),
-                Event::UserAccountRemoved => handle_user_account_removed(
+                Event::UserAccountRemoved => events::handle_user_account_removed(
                     &msg,
                     &bot,
                     &db,
-                    &config,
+                    &config.admin_ids,
+                    &config.admin_lang,
                     &pending_deletions,
                     &rt_handle,
                 ),
@@ -265,182 +267,4 @@ fn handle_logged_in(client: &Client, is_logged_in: &mut bool, config: &TTWorkerC
 
     client.set_status(status_mode, &config.tt_status_text);
     client.subscribe(client.my_id(), teamtalk::types::Subscriptions::all());
-}
-
-fn handle_cmd_success(
-    msg: &teamtalk::Message,
-    pending_cmds: &mut HashMap<i32, PendingCommand>,
-    pending_lists: &mut HashMap<i32, PendingListRequest>,
-) {
-    let cmd_id = msg.source();
-    debug!(cmd_id, "Command succeeded");
-    if let Some(cmd) = pending_cmds.remove(&cmd_id) {
-        let _ = cmd.resp.send(Ok(true));
-    }
-    pending_lists::mark_command_completed(cmd_id, pending_lists);
-}
-
-fn handle_cmd_error(
-    msg: &teamtalk::Message,
-    pending_cmds: &mut HashMap<i32, PendingCommand>,
-    pending_lists: &mut HashMap<i32, PendingListRequest>,
-) {
-    let cmd_id = msg.source();
-    log_cmd_error(cmd_id, msg);
-    if let Some(cmd) = pending_cmds.remove(&cmd_id) {
-        let _ = cmd.resp.send(Err("Command failed on server".to_string()));
-    }
-    pending_lists::fail_command(cmd_id, pending_lists);
-}
-
-fn log_cmd_error(cmd_id: i32, msg: &teamtalk::Message) {
-    let raw = msg.raw();
-    let tt_type = raw.ttType as i32;
-    if tt_type == teamtalk::client::ffi::TTType::__CLIENTERRORMSG as i32 {
-        let err = unsafe { ErrorMessage::from(raw.__bindgen_anon_1.clienterrormsg) };
-        warn!(
-            cmd_id,
-            code = err.code,
-            message = %err.message,
-            "Command failed on TeamTalk server"
-        );
-    } else {
-        warn!(cmd_id, tt_type, "Command failed on TeamTalk server");
-    }
-}
-
-fn handle_user_account_created(
-    msg: &teamtalk::Message,
-    is_logged_in: bool,
-    bot: &Bot,
-    config: &TTWorkerConfig,
-    pending_deletions: &Arc<Mutex<HashMap<String, AbortHandle>>>,
-    rt_handle: &Handle,
-) {
-    if !is_logged_in {
-        return;
-    }
-    let Some(acc) = msg.account() else {
-        return;
-    };
-    let u_name = acc.username;
-    let bot_clone = bot.clone();
-    let admins_clone = config.admin_ids.clone();
-    let pending_dels = pending_deletions.clone();
-    let lang_clone = config.admin_lang.clone();
-
-    rt_handle.spawn(async move {
-        let mut is_update = false;
-        if let Ok(mut lock) = pending_dels.lock() {
-            if let Some(abort_handle) = lock.remove(&u_name) {
-                abort_handle.abort();
-                is_update = true;
-                debug!(
-                    username = %u_name,
-                    "User recreated or updated quickly. Cancelled ban timer"
-                );
-            }
-        } else {
-            warn!(username = %u_name, "Failed to lock pending deletions");
-        }
-
-        let msg_key = if is_update {
-            "tt-account-changed"
-        } else {
-            "tt-account-created"
-        };
-        let args = HashMap::from([("account_username_str".to_string(), u_name.clone())]);
-        let msg_text = t_args(lang_clone.as_str(), msg_key, &args);
-
-        for &aid in &admins_clone {
-            let _ = bot_clone
-                .send_message(ChatId(aid.as_i64()), &msg_text)
-                .await;
-        }
-    });
-}
-
-fn handle_user_account_removed(
-    msg: &teamtalk::Message,
-    bot: &Bot,
-    db: &Database,
-    config: &TTWorkerConfig,
-    pending_deletions: &Arc<Mutex<HashMap<String, AbortHandle>>>,
-    rt_handle: &Handle,
-) {
-    let Some(acc) = msg.account() else {
-        return;
-    };
-    let u_name = acc.username;
-    debug!(
-        username = %u_name,
-        "User removed from TeamTalk. Starting debounce timer"
-    );
-
-    let db_clone = db.clone();
-    let bot_clone = bot.clone();
-    let admins_clone = config.admin_ids.clone();
-    let pending_dels = pending_deletions.clone();
-    let u_name_cl = u_name.clone();
-    let lang_clone = config.admin_lang.clone();
-
-    let task = rt_handle.spawn(async move {
-        tokio::time::sleep(Duration::from_secs(2)).await;
-
-        if let Ok(mut lock) = pending_dels.lock() {
-            lock.remove(&u_name_cl);
-        } else {
-            warn!(username = %u_name_cl, "Failed to lock pending deletions");
-        }
-
-        debug!(
-            username = %u_name_cl,
-            "Timer passed. Auto-banning user associated with account"
-        );
-
-        let removed_text = t_args(
-            lang_clone.as_str(),
-            "tt-account-removed",
-            &HashMap::from([("username".to_string(), u_name_cl.clone())]),
-        );
-        for &aid in &admins_clone {
-            let _ = bot_clone
-                .send_message(ChatId(aid.as_i64()), &removed_text)
-                .await;
-        }
-
-        if let Ok(Some(reg)) = db_clone.get_registration_by_tt_username(&u_name_cl).await {
-            let _ = db_clone
-                .ban_user(
-                    reg.telegram_id,
-                    Some(&u_name_cl),
-                    None,
-                    Some("Account deleted from TeamTalk server"),
-                )
-                .await;
-
-            let args = HashMap::from([
-                ("username".to_string(), u_name_cl),
-                ("tg_id".to_string(), reg.telegram_id.to_string()),
-            ]);
-            let text = t_args(lang_clone.as_str(), "tt-account-removed-banned", &args);
-
-            for &aid in &admins_clone {
-                let _ = bot_clone.send_message(ChatId(aid.as_i64()), &text).await;
-            }
-        } else {
-            let args = HashMap::from([("username".to_string(), u_name_cl)]);
-            let text = t_args(lang_clone.as_str(), "tt-account-removed-no-link", &args);
-
-            for &aid in &admins_clone {
-                let _ = bot_clone.send_message(ChatId(aid.as_i64()), &text).await;
-            }
-        }
-    });
-
-    if let Ok(mut lock) = pending_deletions.lock() {
-        lock.insert(u_name, task.abort_handle());
-    } else {
-        warn!(username = %u_name, "Failed to lock pending deletions");
-    }
 }

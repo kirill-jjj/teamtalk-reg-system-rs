@@ -1,4 +1,5 @@
 mod commands;
+mod events;
 mod pending_lists;
 pub mod worker;
 
