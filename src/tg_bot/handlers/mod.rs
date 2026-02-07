@@ -5,6 +5,7 @@ use teloxide::prelude::*;
 use teloxide::utils::command::BotCommands;
 
 mod admin;
+mod admin_approvals;
 mod admin_panel_actions;
 mod registration;
 mod registration_completion;
