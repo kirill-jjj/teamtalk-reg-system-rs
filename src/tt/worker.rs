@@ -2,6 +2,7 @@ use crate::config::AppConfig;
 use crate::db::Database;
 use crate::files::get_user_rights_mask;
 use crate::i18n::t_args;
+use crate::tt::pending_lists::{self, PendingListRequest};
 use crate::types::{
     LanguageCode, OnlineUser, RegistrationSource, TTAccountType, TTWorkerCommand, TelegramId,
 };
@@ -9,7 +10,6 @@ use std::collections::HashMap;
 use std::sync::mpsc::{Receiver, RecvTimeoutError};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use std::time::Instant;
 use teamtalk::client::{ConnectParams, ReconnectConfig, ReconnectHandler};
 use teamtalk::types::{ErrorMessage, UserAccount, UserGender, UserPresence, UserStatus};
 use teamtalk::{Client, Event};
@@ -23,23 +23,6 @@ use tracing::{debug, error, info, warn};
 
 struct PendingCommand {
     resp: oneshot::Sender<Result<bool, String>>,
-}
-
-enum PendingListKind {
-    AllUsers {
-        resp: oneshot::Sender<Vec<String>>,
-    },
-    Exists {
-        username: crate::domain::Username,
-        resp: oneshot::Sender<bool>,
-    },
-}
-
-struct PendingListRequest {
-    kind: PendingListKind,
-    accumulated: Vec<String>,
-    completed_at: Option<Instant>,
-    mismatch_logged: bool,
 }
 
 struct CommandContext<'a> {
@@ -240,15 +223,8 @@ fn handle_get_all_users(ctx: &mut CommandContext<'_>, resp: oneshot::Sender<Vec<
     let cmd_id = ctx.client.list_user_accounts(0, 10000);
     if cmd_id > 0 {
         debug!(cmd_id, "User accounts list dispatched");
-        ctx.pending_lists.insert(
-            cmd_id,
-            PendingListRequest {
-                kind: PendingListKind::AllUsers { resp },
-                accumulated: Vec::new(),
-                completed_at: None,
-                mismatch_logged: false,
-            },
-        );
+        ctx.pending_lists
+            .insert(cmd_id, PendingListRequest::all_users(resp));
     } else {
         warn!("User accounts list dispatch failed (cmd_id=0)");
         let _ = resp.send(vec![]);
@@ -264,15 +240,8 @@ fn handle_check_user_exists(
     let cmd_id = ctx.client.list_user_accounts(0, 10000);
     if cmd_id > 0 {
         debug!(cmd_id, "User accounts list dispatched for existence check");
-        ctx.pending_lists.insert(
-            cmd_id,
-            PendingListRequest {
-                kind: PendingListKind::Exists { username, resp },
-                accumulated: Vec::new(),
-                completed_at: None,
-                mismatch_logged: false,
-            },
-        );
+        ctx.pending_lists
+            .insert(cmd_id, PendingListRequest::exists(username, resp));
     } else {
         warn!("User accounts list dispatch failed (cmd_id=0)");
         let _ = resp.send(false);
@@ -413,7 +382,9 @@ fn run_tt_loop(runtime: TTWorkerRuntime) {
                     handle_cmd_success(&msg, &mut pending_cmds, &mut pending_lists);
                 }
                 Event::CmdError => handle_cmd_error(&msg, &mut pending_cmds, &mut pending_lists),
-                Event::UserAccount => handle_user_account(&msg, &mut pending_lists),
+                Event::UserAccount => {
+                    pending_lists::handle_user_account_event(&msg, &mut pending_lists);
+                }
                 Event::UserAccountCreated => handle_user_account_created(
                     &msg,
                     is_logged_in,
@@ -434,7 +405,7 @@ fn run_tt_loop(runtime: TTWorkerRuntime) {
             }
         }
 
-        flush_completed_lists(&mut pending_lists);
+        pending_lists::flush_completed(&mut pending_lists);
 
         if !is_logged_in && !client.is_connected() && !client.is_connecting() {
             client.handle_reconnect(&connect_params, &mut reconnect);
@@ -487,8 +458,9 @@ fn handle_connection_lost(
         let _ = cmd.resp.send(Err("Connection lost".to_string()));
     }
     let pending_count = pending_lists.len();
-    for (_, req) in pending_lists.drain() {
-        respond_list_request(req, false);
+    let pending_ids: Vec<i32> = pending_lists.keys().copied().collect();
+    for cmd_id in pending_ids {
+        pending_lists::fail_command(cmd_id, pending_lists);
     }
     if pending_count > 0 {
         warn!(pending_count, "Dropped pending list requests on disconnect");
@@ -525,12 +497,7 @@ fn handle_cmd_success(
     if let Some(cmd) = pending_cmds.remove(&cmd_id) {
         let _ = cmd.resp.send(Ok(true));
     }
-    if let Some(req) = pending_lists.get_mut(&cmd_id)
-        && req.completed_at.is_none()
-    {
-        req.completed_at = Some(Instant::now());
-        debug!(cmd_id, "List command completed; waiting for account events");
-    }
+    pending_lists::mark_command_completed(cmd_id, pending_lists);
 }
 
 fn handle_cmd_error(
@@ -543,79 +510,7 @@ fn handle_cmd_error(
     if let Some(cmd) = pending_cmds.remove(&cmd_id) {
         let _ = cmd.resp.send(Err("Command failed on server".to_string()));
     }
-    if let Some(req) = pending_lists.remove(&cmd_id) {
-        respond_list_request(req, false);
-    }
-}
-
-fn handle_user_account(
-    msg: &teamtalk::Message,
-    pending_lists: &mut HashMap<i32, PendingListRequest>,
-) {
-    let cmd_id = msg.source();
-    let Some(acc) = msg.account() else {
-        return;
-    };
-
-    if let Some(req) = pending_lists.get_mut(&cmd_id) {
-        debug!(cmd_id, username = %acc.username, "Received user account");
-        req.accumulated.push(acc.username);
-        if req.completed_at.is_some() {
-            req.completed_at = Some(Instant::now());
-        }
-        return;
-    }
-
-    if pending_lists.len() == 1 {
-        let (_pending_id, req) = pending_lists.iter_mut().next().unwrap();
-        if !req.mismatch_logged {
-            req.mismatch_logged = true;
-        }
-        req.accumulated.push(acc.username);
-        if req.completed_at.is_some() {
-            req.completed_at = Some(Instant::now());
-        }
-        return;
-    }
-
-    warn!(cmd_id, "Received user account without pending list request");
-}
-
-fn flush_completed_lists(pending_lists: &mut HashMap<i32, PendingListRequest>) {
-    const LIST_GRACE: Duration = Duration::from_millis(500);
-    let now = Instant::now();
-    let mut ready = Vec::new();
-
-    for (&cmd_id, req) in pending_lists.iter() {
-        if let Some(completed_at) = req.completed_at
-            && now.duration_since(completed_at) >= LIST_GRACE
-        {
-            ready.push(cmd_id);
-        }
-    }
-
-    for cmd_id in ready {
-        if let Some(req) = pending_lists.remove(&cmd_id) {
-            debug!(
-                cmd_id,
-                count = req.accumulated.len(),
-                "Finalizing account list"
-            );
-            respond_list_request(req, true);
-        }
-    }
-}
-
-fn respond_list_request(req: PendingListRequest, success: bool) {
-    match req.kind {
-        PendingListKind::AllUsers { resp } => {
-            let _ = resp.send(if success { req.accumulated } else { vec![] });
-        }
-        PendingListKind::Exists { username, resp } => {
-            let exists = success && req.accumulated.iter().any(|name| name == username.as_str());
-            let _ = resp.send(exists);
-        }
-    }
+    pending_lists::fail_command(cmd_id, pending_lists);
 }
 
 fn log_cmd_error(cmd_id: i32, msg: &teamtalk::Message) {
