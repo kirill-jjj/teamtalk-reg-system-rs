@@ -10,6 +10,7 @@ use std::sync::mpsc::Sender;
 use tokio::net::TcpListener;
 use tracing::{error, info, warn};
 
+mod downloads;
 mod handlers;
 mod request_ctx;
 mod templates;
