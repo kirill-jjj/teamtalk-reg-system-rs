@@ -9,7 +9,7 @@ Service for handling TeamTalk registrations via Telegram bot and web endpoints.
 - Rust (stable)
 - SQLite (via `sqlx` with the bundled driver)
 - `sqlx-cli` installed (`cargo install sqlx-cli`)
-- Optional: `pre-commit` if you want hooks
+- Optional: `lefthook` if you want hooks
 
 ## Quick Start
 
@@ -72,11 +72,11 @@ cargo clippy -- -D warnings
 cargo test
 ```
 
-Pre-commit hooks:
+Git hooks (lefthook):
 
 ```bash
-pre-commit install
-pre-commit run --all-files
+lefthook install
+lefthook run pre-commit
 ```
 
 ## Notes
