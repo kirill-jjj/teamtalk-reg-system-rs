@@ -23,6 +23,7 @@ Create `.env` with a database URL (example for local SQLite):
 
 ```bash
 DATABASE_URL=sqlite:///absolute/path/to/db/dev.db
+PENDING_PASSWORD_ENCRYPTION_KEY=<BASE64_32_BYTE_KEY>
 ```
 
 2) Create the database and apply migrations:
@@ -54,7 +55,6 @@ and adjust values:
 - Host/port settings
 - Registration policy toggles
 - TeamTalk and download settings
-- `pending_password_encryption_key` (Base64-encoded 32-byte key)
 - Optional `log_level` (tracing filter), for example:
   - `log_level = "info"`
   - `log_level = "info,teamtalk_reg_system_rs=debug,teloxide=debug"`
@@ -62,6 +62,7 @@ and adjust values:
 Environment variables:
 
 - `DATABASE_URL` is required by `sqlx` (used by the app and `cargo sqlx prepare`)
+- `PENDING_PASSWORD_ENCRYPTION_KEY` is required for pending password encryption (Base64-encoded 32-byte key)
 
 ## Development
 
@@ -84,4 +85,4 @@ lefthook run pre-commit
 
 - The SQLite database file path must be absolute in `DATABASE_URL`.
 - `cargo sqlx prepare` updates the `.sqlx/` query cache and should be committed.
-- App startup fails fast when `pending_password_encryption_key` is missing or invalid.
+- App startup fails fast when `PENDING_PASSWORD_ENCRYPTION_KEY` is missing or invalid.

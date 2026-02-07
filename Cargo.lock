@@ -3326,6 +3326,7 @@ dependencies = [
  "base64",
  "chrono",
  "clap",
+ "dotenvy",
  "fluent",
  "fluent-templates",
  "http",

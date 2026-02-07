@@ -52,7 +52,6 @@ web_app_ssl_cert_path = ""
 web_app_ssl_key_path = ""
 
 # --- Advanced ---
-pending_password_encryption_key = "REPLACE_WITH_BASE64_32_BYTE_KEY"
 teamtalk_client_template_dir = ""
 generated_file_ttl_seconds = 600
 db_name = "users.db"

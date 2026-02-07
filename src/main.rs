@@ -15,6 +15,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use config::AppConfig;
 use db::Database;
+use dotenvy::dotenv;
 use security::crypto::EncryptionService;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -40,6 +41,7 @@ struct Args {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let _ = dotenv();
     let args = Args::parse();
     let config_path = PathBuf::from(&args.config);
     let config = AppConfig::load(&config_path)
@@ -84,9 +86,10 @@ fn build_env_filter(config: &AppConfig) -> (EnvFilter, Option<String>) {
 
 async fn run_app(config: AppConfig, config_path: PathBuf) -> Result<()> {
     let shutdown = CancellationToken::new();
-    let encryption =
-        EncryptionService::new_from_base64_key(&config.security.pending_password_encryption_key)
-            .context("Missing or invalid pending_password_encryption_key in config.toml")?;
+    let key = std::env::var("PENDING_PASSWORD_ENCRYPTION_KEY")
+        .context("Missing PENDING_PASSWORD_ENCRYPTION_KEY in environment/.env")?;
+    let encryption = EncryptionService::new_from_base64_key(&key)
+        .context("Invalid PENDING_PASSWORD_ENCRYPTION_KEY")?;
     let db = init_db(&config, &config_path, encryption).await?;
     let (tx_tt, rx_tt) = mpsc::channel();
     let bot = Bot::new(&config.telegram.tg_bot_token);
