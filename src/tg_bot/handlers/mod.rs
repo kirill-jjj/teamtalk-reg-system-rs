@@ -8,6 +8,7 @@ mod admin;
 mod admin_panel_actions;
 mod registration;
 mod registration_completion;
+mod registration_flow;
 
 pub use admin::{admin_callback, admin_manual_ban_input, admin_panel, exit_bot, generate_invite};
 pub use registration::{
