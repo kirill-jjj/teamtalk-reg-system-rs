@@ -1,3 +1,4 @@
+mod commands;
 mod pending_lists;
 pub mod worker;
 
