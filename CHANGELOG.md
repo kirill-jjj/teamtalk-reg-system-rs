@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+### Added
+- AES-GCM encryption for pending registration passwords at rest.
+- New `pending_password_encryption_key` config requirement.
+### Changed
+- `/exit` command now triggers graceful shutdown instead of hard process termination.
+- Added migration to replace pending password plaintext columns with encrypted columns.
+
 ## [0.1.3] - 2026-01-26
 ### Added
 - Admin panel pagination for TeamTalk accounts, users, and banlist.

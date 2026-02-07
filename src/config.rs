@@ -18,6 +18,8 @@ pub struct AppConfig {
     pub database: DatabaseConfig,
     #[serde(flatten)]
     pub logging: LoggingConfig,
+    #[serde(flatten)]
+    pub security: SecurityConfig,
 }
 
 /// Telegram and admin settings.
@@ -115,6 +117,13 @@ pub struct DatabaseConfig {
 pub struct LoggingConfig {
     #[serde(default, deserialize_with = "deserialize_optional_string")]
     pub log_level: Option<String>,
+}
+
+/// Security settings.
+#[derive(Clone, Deserialize, Debug)]
+pub struct SecurityConfig {
+    #[serde(default)]
+    pub pending_password_encryption_key: String,
 }
 
 fn deserialize_optional_lang<'de, D>(deserializer: D) -> Result<Option<LanguageCode>, D::Error>

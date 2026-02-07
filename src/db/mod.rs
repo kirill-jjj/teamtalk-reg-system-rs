@@ -1,3 +1,4 @@
+use crate::security::crypto::EncryptionService;
 use crate::types::TelegramId;
 use anyhow::Result;
 use chrono::Utc;
@@ -20,13 +21,14 @@ use schema::{
 #[derive(Clone)]
 pub struct Database {
     pub pool: Pool<Sqlite>,
+    encryption: EncryptionService,
 }
 
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations");
 
 impl Database {
     /// `new` database operation.
-    pub async fn new(db_filename: &str) -> Result<Self> {
+    pub async fn new(db_filename: &str, encryption: EncryptionService) -> Result<Self> {
         let db_url = format!("sqlite://{db_filename}");
 
         if !Path::new(db_filename).exists() {
@@ -65,7 +67,8 @@ impl Database {
         MIGRATOR.run(&pool).await?;
         integrity_check(&pool).await?;
         validate_schema(&pool).await?;
-        let db = Self { pool };
+        let db = Self { pool, encryption };
+        db.migrate_pending_passwords_online().await?;
         Ok(db)
     }
 
@@ -162,15 +165,16 @@ impl Database {
         nickname: &str,
         source_info: &str,
     ) -> Result<()> {
-        sqlx::query!(
-            "INSERT INTO pending_telegram_registrations (request_key, registrant_telegram_id, username, password_cleartext, nickname, source_info) VALUES (?, ?, ?, ?, ?, ?)",
-            key,
-            tg_id,
-            username,
-            password,
-            nickname,
-            source_info
+        let encrypted_password = self.encryption.encrypt(password)?;
+        sqlx::query(
+            "INSERT INTO pending_telegram_registrations (request_key, registrant_telegram_id, username, password_encrypted, nickname, source_info) VALUES (?, ?, ?, ?, ?, ?)",
         )
+        .bind(key)
+        .bind(tg_id)
+        .bind(username)
+        .bind(encrypted_password)
+        .bind(nickname)
+        .bind(source_info)
         .execute(&self.pool)
         .await?;
         Ok(())
@@ -182,14 +186,30 @@ impl Database {
         &self,
         key: &str,
     ) -> Result<Option<PendingTelegramRegistration>> {
-        let reg = sqlx::query_as!(
-            PendingTelegramRegistration,
-            "SELECT id as \"id?: i64\", request_key as \"request_key!: String\", registrant_telegram_id as \"registrant_telegram_id!: TelegramId\", username as \"username!: String\", password_cleartext as \"password_cleartext!: String\", nickname as \"nickname!: String\", source_info as \"source_info!: String\", created_at as \"created_at!: chrono::NaiveDateTime\" FROM pending_telegram_registrations WHERE request_key = ?",
-            key
+        let row = sqlx::query(
+            "SELECT id, request_key, registrant_telegram_id, username, password_encrypted, nickname, source_info, created_at FROM pending_telegram_registrations WHERE request_key = ?",
         )
+        .bind(key)
         .fetch_optional(&self.pool)
         .await?;
-        Ok(reg)
+
+        let Some(row) = row else {
+            return Ok(None);
+        };
+
+        let password_encrypted: String = row.try_get("password_encrypted")?;
+        let password = self.encryption.decrypt(&password_encrypted)?;
+
+        Ok(Some(PendingTelegramRegistration {
+            id: row.try_get("id")?,
+            request_key: row.try_get("request_key")?,
+            registrant_telegram_id: row.try_get("registrant_telegram_id")?,
+            username: row.try_get("username")?,
+            password,
+            nickname: row.try_get("nickname")?,
+            source_info: row.try_get("source_info")?,
+            created_at: row.try_get("created_at")?,
+        }))
     }
 
     /// `delete_pending_registration` database operation.
@@ -436,6 +456,24 @@ impl Database {
         Ok(())
     }
 
+    async fn migrate_pending_passwords_online(&self) -> Result<()> {
+        migrate_table_passwords(
+            &self.pool,
+            &self.encryption,
+            "pending_telegram_registrations",
+            "id",
+        )
+        .await?;
+        migrate_table_passwords(
+            &self.pool,
+            &self.encryption,
+            "pending_web_registrations",
+            "id",
+        )
+        .await?;
+        Ok(())
+    }
+
     /// `close` database operation.
     pub async fn close(&self) {
         self.pool.close().await;
@@ -485,7 +523,7 @@ async fn validate_schema(pool: &Pool<Sqlite>) -> Result<()> {
             "request_key",
             "registrant_telegram_id",
             "username",
-            "password_cleartext",
+            "password_encrypted",
             "nickname",
             "source_info",
             "created_at",
@@ -500,7 +538,7 @@ async fn validate_schema(pool: &Pool<Sqlite>) -> Result<()> {
             "id",
             "request_key",
             "username",
-            "password_cleartext",
+            "password_encrypted",
             "nickname",
             "ip_address",
             "user_agent",
@@ -526,6 +564,41 @@ async fn ensure_columns(pool: &Pool<Sqlite>, table: &str, expected: &[&str]) -> 
         if !present.contains(*col) {
             anyhow::bail!("Table {table} missing column: {col}");
         }
+    }
+    Ok(())
+}
+
+async fn migrate_table_passwords(
+    pool: &Pool<Sqlite>,
+    encryption: &EncryptionService,
+    table: &str,
+    id_col: &str,
+) -> Result<()> {
+    let sql = format!("SELECT {id_col}, password_encrypted FROM {table}");
+    let rows = sqlx::query(&sql).fetch_all(pool).await?;
+    let mut migrated_count = 0_usize;
+
+    for row in rows {
+        let id: i64 = row.try_get(id_col)?;
+        let value: String = row.try_get("password_encrypted")?;
+        if EncryptionService::is_encrypted(&value) {
+            continue;
+        }
+        let encrypted = encryption.encrypt(&value)?;
+        let update_sql = format!("UPDATE {table} SET password_encrypted = ? WHERE {id_col} = ?");
+        sqlx::query(&update_sql)
+            .bind(encrypted)
+            .bind(id)
+            .execute(pool)
+            .await?;
+        migrated_count += 1;
+    }
+
+    if migrated_count > 0 {
+        info!(
+            table,
+            migrated_count, "Migrated legacy plaintext pending passwords"
+        );
     }
     Ok(())
 }

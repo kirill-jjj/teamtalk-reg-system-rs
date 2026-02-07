@@ -327,7 +327,12 @@ async fn notify_admin_decision(
 }
 
 /// Exit command handler.
-pub async fn exit_bot(bot: Bot, msg: Message, config: Arc<AppConfig>) -> HandlerResult {
+pub async fn exit_bot(
+    bot: Bot,
+    msg: Message,
+    config: Arc<AppConfig>,
+    shutdown: tokio_util::sync::CancellationToken,
+) -> HandlerResult {
     if !config
         .telegram
         .admin_ids
@@ -340,7 +345,8 @@ pub async fn exit_bot(bot: Bot, msg: Message, config: Arc<AppConfig>) -> Handler
         t(config.telegram.bot_admin_lang.as_str(), "bot-shutdown"),
     )
     .await?;
-    std::process::exit(0);
+    shutdown.cancel();
+    Ok(())
 }
 
 fn parse_admin_callback(data: &str) -> Option<AdminCallback> {
@@ -545,7 +551,7 @@ async fn load_pending_approval(
             .await?;
         return Ok(None);
     };
-    let Some(password) = Password::parse(&req.password_cleartext) else {
+    let Some(password) = Password::parse(&req.password) else {
         bot.answer_callback_query(q.id.clone())
             .text(t(lang.as_str(), "admin-req-not-found"))
             .await?;

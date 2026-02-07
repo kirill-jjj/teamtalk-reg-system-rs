@@ -54,6 +54,7 @@ and adjust values:
 - Host/port settings
 - Registration policy toggles
 - TeamTalk and download settings
+- `pending_password_encryption_key` (Base64-encoded 32-byte key)
 - Optional `log_level` (tracing filter), for example:
   - `log_level = "info"`
   - `log_level = "info,teamtalk_reg_system_rs=debug,teloxide=debug"`
@@ -83,3 +84,4 @@ lefthook run pre-commit
 
 - The SQLite database file path must be absolute in `DATABASE_URL`.
 - `cargo sqlx prepare` updates the `.sqlx/` query cache and should be committed.
+- App startup fails fast when `pending_password_encryption_key` is missing or invalid.

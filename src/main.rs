@@ -4,6 +4,7 @@ mod db;
 mod domain;
 mod files;
 mod i18n;
+mod security;
 mod services;
 mod tg_bot;
 mod tt;
@@ -14,6 +15,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use config::AppConfig;
 use db::Database;
+use security::crypto::EncryptionService;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::mpsc;
@@ -82,7 +84,10 @@ fn build_env_filter(config: &AppConfig) -> (EnvFilter, Option<String>) {
 
 async fn run_app(config: AppConfig, config_path: PathBuf) -> Result<()> {
     let shutdown = CancellationToken::new();
-    let db = init_db(&config, &config_path).await?;
+    let encryption =
+        EncryptionService::new_from_base64_key(&config.security.pending_password_encryption_key)
+            .context("Missing or invalid pending_password_encryption_key in config.toml")?;
+    let db = init_db(&config, &config_path, encryption).await?;
     let (tx_tt, rx_tt) = mpsc::channel();
     let bot = Bot::new(&config.telegram.tg_bot_token);
 
@@ -108,7 +113,8 @@ async fn run_app(config: AppConfig, config_path: PathBuf) -> Result<()> {
 
     let web_handle = spawn_web_server(&config, db.clone(), tx_tt.clone(), shutdown.clone());
 
-    let (dispatch_handle, shutdown_task) = spawn_dispatcher(bot, &db, tx_tt, config, shutdown);
+    let (dispatch_handle, shutdown_task) =
+        spawn_dispatcher(bot, &db, tx_tt, config, shutdown.clone());
 
     wait_for_tasks(
         dispatch_handle,
@@ -126,11 +132,15 @@ async fn run_app(config: AppConfig, config_path: PathBuf) -> Result<()> {
     Ok(())
 }
 
-async fn init_db(config: &AppConfig, config_path: &std::path::Path) -> Result<Database> {
+async fn init_db(
+    config: &AppConfig,
+    config_path: &std::path::Path,
+    encryption: EncryptionService,
+) -> Result<Database> {
     let db_path = config.get_db_path(config_path);
     let db_path_str = db_path.to_string_lossy().to_string();
     debug!(db_path = db_path_str, "Database path");
-    Database::new(&db_path_str).await
+    Database::new(&db_path_str, encryption).await
 }
 
 fn ensure_temp_dir() -> Result<()> {
@@ -230,6 +240,7 @@ fn build_message_handler() -> UpdateHandler<HandlerError> {
              cmd: Command,
              db: Database,
              config: Arc<AppConfig>,
+             shutdown: CancellationToken,
              dialogue: MyDialogue| async move {
                 match cmd {
                     Command::Start => tg_bot::handlers::start(bot, msg, dialogue, db, config).await,
@@ -239,7 +250,7 @@ fn build_message_handler() -> UpdateHandler<HandlerError> {
                     Command::Generate => {
                         tg_bot::handlers::generate_invite(bot, msg, db, config).await
                     }
-                    Command::Exit => tg_bot::handlers::exit_bot(bot, msg, config).await,
+                    Command::Exit => tg_bot::handlers::exit_bot(bot, msg, config, shutdown).await,
                     Command::Help => Ok(()),
                 }
             },
@@ -386,6 +397,7 @@ fn spawn_dispatcher(
             db.clone(),
             config_arc,
             tx_tt,
+            shutdown.clone(),
             InMemStorage::<State>::new()
         ])
         .build();

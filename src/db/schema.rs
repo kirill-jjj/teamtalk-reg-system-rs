@@ -17,7 +17,7 @@ pub struct PendingTelegramRegistration {
     pub request_key: String,
     pub registrant_telegram_id: TelegramId,
     pub username: String,
-    pub password_cleartext: String,
+    pub password: String,
     pub nickname: String,
     pub source_info: String,
     pub created_at: NaiveDateTime,
