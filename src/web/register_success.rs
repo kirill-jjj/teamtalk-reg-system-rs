@@ -1,5 +1,5 @@
 use super::WebState;
-use super::register_submit::error_template;
+use super::register_form::{base_template, error_template};
 use super::templates::{RegisterForm, RegisterTemplate};
 use crate::domain::{Nickname, Password, Username};
 use crate::i18n::t;
@@ -77,7 +77,7 @@ pub(super) async fn build_success_template(params: WebSuccessParams<'_>) -> Regi
             Err(tpl) => return tpl,
         };
 
-    let mut tpl = super::register_submit::base_template(state, lang, language_forced);
+    let mut tpl = base_template(state, lang, language_forced);
     tpl.registration_complete = true;
     tpl.message = Some(t(lang.as_str(), "web-success-title"));
     tpl.message_class = Some("success".to_string());

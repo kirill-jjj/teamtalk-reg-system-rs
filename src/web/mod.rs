@@ -12,6 +12,7 @@ use tracing::{error, info, warn};
 
 mod downloads;
 mod handlers;
+mod register_form;
 mod register_submit;
 mod register_success;
 mod request_ctx;
