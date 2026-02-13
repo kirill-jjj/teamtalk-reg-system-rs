@@ -3,7 +3,7 @@ use aes_gcm::{Aes256Gcm, Nonce};
 use anyhow::{Result, bail};
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
-use rand::RngCore;
+use rand::Rng;
 
 const ENC_PREFIX: &str = "enc:v1:";
 const NONCE_LEN: usize = 12;
