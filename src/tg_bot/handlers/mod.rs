@@ -1,8 +1,8 @@
 use crate::domain::{Nickname, Password, Username};
 use crate::types::LanguageCode;
-use teloxide::dispatching::dialogue::InMemStorage;
-use teloxide::prelude::*;
-use teloxide::utils::command::BotCommands;
+use teloxide_ng::dispatching::dialogue::InMemStorage;
+use teloxide_ng::prelude::*;
+use teloxide_ng::utils::command::BotCommands;
 
 mod admin;
 mod admin_approvals;

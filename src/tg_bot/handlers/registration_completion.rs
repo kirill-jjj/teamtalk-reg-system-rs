@@ -10,8 +10,8 @@ use std::collections::HashMap;
 use std::fmt::Write as _;
 use std::sync::Arc;
 use std::sync::mpsc::Sender;
-use teloxide::prelude::*;
-use teloxide::types::ChatId;
+use teloxide_ng::prelude::*;
+use teloxide_ng::types::ChatId;
 use tracing::warn;
 use uuid::Uuid;
 

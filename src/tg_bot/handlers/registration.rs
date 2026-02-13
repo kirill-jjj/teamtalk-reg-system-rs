@@ -10,8 +10,8 @@ use crate::types::{LanguageCode, TTAccountType, TTWorkerCommand, TelegramId};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::mpsc::Sender;
-use teloxide::prelude::*;
-use teloxide::types::{ChatId, InputFile};
+use teloxide_ng::prelude::*;
+use teloxide_ng::types::{ChatId, InputFile};
 use tracing::{error, trace, warn};
 
 /// Handle nickname choice callback.

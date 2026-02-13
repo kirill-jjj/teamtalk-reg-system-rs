@@ -1,6 +1,6 @@
 use crate::i18n::available_languages;
 use crate::types::TelegramId;
-use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup};
+use teloxide_ng::types::{InlineKeyboardButton, InlineKeyboardMarkup};
 
 /// Keyboard for language selection.
 pub fn language_keyboard() -> InlineKeyboardMarkup {

@@ -10,7 +10,7 @@ use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex};
 use teamtalk::client::{ConnectParams, ReconnectConfig, ReconnectHandler};
 use teamtalk::{Client, Event};
-use teloxide::prelude::*;
+use teloxide_ng::prelude::*;
 use tokio::runtime::Handle;
 use tokio::task::AbortHandle;
 use tracing::instrument;

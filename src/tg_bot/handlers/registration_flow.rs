@@ -7,7 +7,7 @@ use crate::types::{LanguageCode, TTWorkerCommand, TelegramId};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::mpsc::Sender;
-use teloxide::prelude::*;
+use teloxide_ng::prelude::*;
 use tracing::{debug, error, warn};
 
 async fn is_banned(db: &Database, chat_id: TelegramId) -> bool {

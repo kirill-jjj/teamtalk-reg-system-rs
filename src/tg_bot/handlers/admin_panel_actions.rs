@@ -5,7 +5,7 @@ use crate::i18n::{t, t_args};
 use crate::types::{LanguageCode, TTWorkerCommand, TelegramId};
 use std::collections::HashMap;
 use std::sync::mpsc::Sender;
-use teloxide::prelude::*;
+use teloxide_ng::prelude::*;
 use tracing::warn;
 
 const ADMIN_PAGE_SIZE: usize = 20;

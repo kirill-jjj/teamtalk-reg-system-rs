@@ -10,8 +10,8 @@ use crate::services::registration;
 use crate::types::{LanguageCode, RegistrationSource, TTAccountType, TTWorkerCommand};
 use std::collections::HashMap;
 use std::sync::mpsc::Sender;
-use teloxide::prelude::*;
-use teloxide::types::ChatId;
+use teloxide_ng::prelude::*;
+use teloxide_ng::types::ChatId;
 use tracing::warn;
 
 pub(super) struct AdminApproveInput<'a> {
