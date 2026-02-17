@@ -40,7 +40,7 @@ unic-langid = "0.9.6"
 mime_guess = "2.0.5"
 walkdir = "2.5.0"
 zip = { version = "8.1.0", default-features = false, features = ["deflate"] }
-clap = { version = "4.5.58", features = ["derive"] }
+clap = { version = "4.5.59", features = ["derive"] }
 aes-gcm = "0.10.3"
 base64 = "0.22.1"
 rand = { version = "0.10.0", default-features = false, features = ["std", "thread_rng"] }
