@@ -1,4 +1,4 @@
-﻿CREATE TABLE IF NOT EXISTS telegram_registrations (
+CREATE TABLE IF NOT EXISTS telegram_registrations (
     telegram_id INTEGER PRIMARY KEY,
     teamtalk_username TEXT NOT NULL UNIQUE
 );

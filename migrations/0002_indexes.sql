@@ -1,4 +1,4 @@
-﻿CREATE INDEX IF NOT EXISTS idx_telegram_registrations_teamtalk_username
+CREATE INDEX IF NOT EXISTS idx_telegram_registrations_teamtalk_username
     ON telegram_registrations(teamtalk_username);
 
 CREATE INDEX IF NOT EXISTS idx_pending_registrations_request_key
