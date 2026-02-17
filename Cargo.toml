@@ -39,7 +39,7 @@ fluent-templates = "0.13.3"
 unic-langid = "0.9.6"
 mime_guess = "2.0.5"
 walkdir = "2.5.0"
-zip = { version = "8.0.0", default-features = false, features = ["deflate"] }
+zip = { version = "8.1.0", default-features = false, features = ["deflate"] }
 clap = { version = "4.5.58", features = ["derive"] }
 aes-gcm = "0.10.3"
 base64 = "0.22.1"
