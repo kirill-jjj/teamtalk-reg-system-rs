@@ -3450,9 +3450,9 @@ checksum = "20f34339676cdcab560c9a82300c4c2581f68b9369aedf0fae86f2ff9565ff3e"
 
 [[package]]
 name = "teamtalk"
-version = "1.3.0"
+version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "41e42daf8511d9197aa3607425258f6a549135031c65e1431cbee132d6b4db59"
+checksum = "e46f057fce0b9b8a99f2e7758c77f7512aaee6d49c0d45e5896ba5ed5fd50cb8"
 dependencies = [
  "dirs",
  "evalexpr",
