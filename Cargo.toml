@@ -26,7 +26,7 @@ http = { version = "1.4.0" }
 askama = { version = "0.15.4", default-features = false, features = ["derive", "std"] }
 askama-derive-axum = { version = "0.1.4" }
 sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio-rustls", "sqlite", "chrono", "migrate", "macros"] }
-teamtalk = "1.3.0"
+teamtalk = "3.1.0"
 serde = { version = "1.0.228", features = ["derive"] }
 toml = "1.0.3"
 tracing = "0.1.44"
