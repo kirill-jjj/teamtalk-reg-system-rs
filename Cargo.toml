@@ -47,7 +47,7 @@ rand = { version = "0.10.0", default-features = false, features = ["std", "threa
 dotenvy = "0.15.7"
 
 [target.'cfg(windows)'.dependencies]
-tracing-subscriber = { version = "0.3.19", default-features = false, features = ["env-filter", "fmt"] }
+tracing-subscriber = { version = "0.3.23", default-features = false, features = ["env-filter", "fmt"] }
 
 [target.'cfg(not(windows))'.dependencies]
 tracing-subscriber = { version = "0.3.19", default-features = false, features = ["env-filter", "fmt", "ansi"] }
