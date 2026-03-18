@@ -28,7 +28,7 @@ askama-derive-axum = { version = "0.1.4" }
 sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio-rustls", "sqlite", "chrono", "migrate", "macros"] }
 teamtalk = "5.0.0"
 serde = { version = "1.0.228", features = ["derive"] }
-toml = "1.0.3"
+toml = "1.0.7"
 tracing = "0.1.44"
 anyhow = "1.0.102"
 thiserror = "2.0.18"
