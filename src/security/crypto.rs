@@ -32,10 +32,10 @@ impl EncryptionService {
     pub fn encrypt(&self, plaintext: &str) -> Result<String> {
         let mut nonce_bytes = [0_u8; NONCE_LEN];
         rand::rng().fill_bytes(&mut nonce_bytes);
-        let nonce = Nonce::from_slice(&nonce_bytes);
+        let nonce = Nonce::try_from(&nonce_bytes[..])?;
         let encrypted = self
             .cipher
-            .encrypt(nonce, plaintext.as_bytes())
+            .encrypt(&nonce, plaintext.as_bytes())
             .map_err(|e| anyhow::anyhow!("encryption failed: {e}"))?;
 
         let mut payload = Vec::with_capacity(NONCE_LEN + encrypted.len());
@@ -56,10 +56,10 @@ impl EncryptionService {
         }
 
         let (nonce_bytes, ciphertext) = payload.split_at(NONCE_LEN);
-        let nonce = Nonce::from_slice(nonce_bytes);
+        let nonce = Nonce::try_from(nonce_bytes)?;
         let decrypted = self
             .cipher
-            .decrypt(nonce, ciphertext)
+            .decrypt(&nonce, ciphertext)
             .map_err(|e| anyhow::anyhow!("decryption failed: {e}"))?;
         String::from_utf8(decrypted).map_err(|e| anyhow::anyhow!("invalid utf-8 plaintext: {e}"))
     }

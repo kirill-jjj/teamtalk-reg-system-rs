@@ -2,7 +2,7 @@ use super::Database;
 use crate::security::crypto::EncryptionService;
 use anyhow::Result;
 use chrono::Utc;
-use sqlx::{Pool, Row, Sqlite};
+use sqlx::{AssertSqlSafe, Pool, Row, Sqlite};
 use std::collections::HashSet;
 use tracing::{error, info, instrument, trace};
 
@@ -133,7 +133,7 @@ pub(super) async fn validate_schema(pool: &Pool<Sqlite>) -> Result<()> {
 }
 
 async fn ensure_columns(pool: &Pool<Sqlite>, table: &str, expected: &[&str]) -> Result<()> {
-    let rows = sqlx::query(&format!("PRAGMA table_info({table})"))
+    let rows = sqlx::query(AssertSqlSafe(format!("PRAGMA table_info({table})")))
         .fetch_all(pool)
         .await?;
     let mut present = HashSet::new();
@@ -156,7 +156,7 @@ async fn migrate_table_passwords(
     id_col: &str,
 ) -> Result<()> {
     let sql = format!("SELECT {id_col}, password_encrypted FROM {table}");
-    let rows = sqlx::query(&sql).fetch_all(pool).await?;
+    let rows = sqlx::query(AssertSqlSafe(sql)).fetch_all(pool).await?;
     let mut migrated_count = 0_usize;
 
     for row in rows {
@@ -167,7 +167,7 @@ async fn migrate_table_passwords(
         }
         let encrypted = encryption.encrypt(&value)?;
         let update_sql = format!("UPDATE {table} SET password_encrypted = ? WHERE {id_col} = ?");
-        sqlx::query(&update_sql)
+        sqlx::query(AssertSqlSafe(update_sql))
             .bind(encrypted)
             .bind(id)
             .execute(pool)

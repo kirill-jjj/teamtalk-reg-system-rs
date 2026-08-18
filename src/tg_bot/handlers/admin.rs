@@ -321,11 +321,10 @@ fn parse_admin_callback(data: &str) -> Option<AdminCallback> {
                 AdminPanelAction::TeamTalkDeletePrompt(user.to_string())
             } else if let Some(user) = data.strip_prefix("confirm_tt_del_") {
                 AdminPanelAction::TeamTalkDeleteConfirm(user.to_string())
-            } else if let Some(page) = data.strip_prefix("admin_tt_list_page_") {
+            } else {
+                let page = data.strip_prefix("admin_tt_list_page_")?;
                 let page = page.parse::<usize>().ok()?;
                 AdminPanelAction::ListTeamTalkUsersPage(page)
-            } else {
-                return None;
             }
         }
     };
